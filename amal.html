@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ar" id="htmlRoot">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مساحة أمل — BreakFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/global.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<!-- LOCK SCREEN -->
+<div class="lock-screen" id="amalLockScreen">
+  <div class="lock-card">
+    <div style="font-size:28px;">✨</div>
+    <h2 style="margin-top:10px;">مساحة أمل</h2>
+    <p id="amalPasswordPrompt" style="color:var(--text-soft);font-size:13.5px;margin-top:8px;">
+      إذا أنتِ أمل، دخلي الباسوورد 👀
+    </p>
+    <input type="password" id="amalPasswordInput" placeholder="••••">
+    <button class="btn btn-primary btn-block" id="amalUnlockBtn">دخول</button>
+    <div class="lock-msg" id="amalLockMsg"></div>
+    <a href="index.html" style="display:inline-block;margin-top:14px;font-size:12.5px;color:var(--text-soft);">← الرئيسية</a>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="wrap hidden" id="amalDashboard">
+  <nav class="page-nav">
+    <a href="index.html"><span class="nav-icon">🏠</span><span>Home</span></a>
+    <a href="amal.html" class="active"><span class="nav-icon">✨</span><span>مساحة أمل</span></a>
+    <a href="admin.html"><span class="nav-icon">⚙</span><span>Admin</span></a>
+  </nav>
+
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">✨</div>
+      <div>
+        <div class="brand-name">مساحة أمل</div>
+        <div style="font-size:12px;color:var(--text-soft);">Weekly Break Command Center</div>
+      </div>
+    </div>
+    <button class="icon-btn" id="langToggleBtn">🌐</button>
+  </header>
+
+  <div class="card" id="amalWelcomeBanner" style="font-weight:700;"></div>
+
+  <div class="card fun-fact-card" id="funFactCard"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="overview">نظرة عامة</button>
+    <button class="tab-btn" data-tab="week">الأسبوع</button>
+    <button class="tab-btn" data-tab="employees">الموظفين</button>
+    <button class="tab-btn" data-tab="breaks">البريكات</button>
+    <button class="tab-btn" data-tab="swaps">التبديلات</button>
+    <button class="tab-btn" data-tab="log">سجل العمليات</button>
+  </div>
+
+  <div class="tab-panel" data-tab="overview">
+    <div class="overview-grid" id="overviewGrid"></div>
+  </div>
+
+  <div class="tab-panel hidden" data-tab="week">
+    <div class="card">
+      <h2>Sunday → Saturday</h2>
+      <div class="week-grid" id="weekGrid"></div>
+    </div>
+    <div class="card hidden" id="dayDetailPanel">
+      <h2 id="dayDetailTitle"></h2>
+      <div id="dayDetailList"></div>
+    </div>
+  </div>
+
+  <div class="tab-panel hidden" data-tab="employees">
+    <div class="card">
+      <h2>Employee Break Balances</h2>
+      <table class="data-table">
+        <thead><tr><th>Employee</th><th>Working</th><th>Used</th><th>Remaining</th><th>Next Break</th><th>Status</th></tr></thead>
+        <tbody id="balanceTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel hidden" data-tab="breaks">
+    <div class="card">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+        <select id="filterEmployee" style="flex:1;min-width:140px;"></select>
+        <select id="filterStatus" style="flex:1;min-width:140px;">
+          <option value="">All Statuses</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="on-break">On Break</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <input type="text" id="searchEmployee" placeholder="Search employee…" style="flex:1;min-width:140px;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);">
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Day</th><th>Employee</th><th>Gender</th><th>Start</th><th>End</th><th>Duration</th><th>Status</th></tr></thead>
+        <tbody id="fullListBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel hidden" data-tab="swaps">
+    <div class="card">
+      <h2>Swap Center</h2>
+      <p class="sub">All swap requests across the team — pending, accepted, declined, and expired.</p>
+      <table class="data-table">
+        <thead><tr><th>Requested</th><th>From</th><th>From Slot</th><th>To</th><th>To Slot</th><th>Status</th></tr></thead>
+        <tbody id="swapCenterBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel hidden" data-tab="log">
+    <div class="card">
+      <h2>Activity Log</h2>
+      <div id="activityLogList"></div>
+    </div>
+  </div>
+
+  <footer class="app-footer" id="footerCredit"></footer>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/employees.js"></script>
+<script src="js/attendance.js"></script>
+<script src="js/translations.js"></script>
+<script src="js/message-service.js"></script>
+<script src="js/auth.js"></script>
+<script src="services/local-storage-service.js"></script>
+<script src="services/data-service.js"></script>
+<script src="js/booking.js"></script>
+<script src="js/schedule.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/amal.js"></script>
+</body>
+</html>

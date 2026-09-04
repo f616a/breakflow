@@ -1,0 +1,45 @@
+/**
+ * css/global.css — base element styles and page shell.
+ */
+*{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; }
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.5;
+}
+h1,h2,h3{ font-family:'Plus Jakarta Sans','Inter',sans-serif; letter-spacing:-0.01em; margin:0; }
+button, select, input{ font-family:inherit; }
+a{ color:inherit; }
+.hidden{ display:none !important; }
+
+.wrap{ max-width:1080px; margin:0 auto; padding:24px 20px 40px; }
+
+/* Numbers/times must never visually flip in RTL. */
+.time, .schedule-time, .badge-dur, [dir="rtl"] .no-flip { unicode-bidi: plaintext; direction: ltr; display:inline-block; }
+
+.app-footer{
+  text-align:center; padding:28px 16px 40px; color:var(--text-faint);
+  font-size:12.5px; font-weight:500;
+}
+
+/* Gender-dot indicator used across all "personal accent" contexts */
+.gender-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-inline-end:7px; flex-shrink:0; }
+.gender-dot.gender-male{ background:var(--male-text); }
+.gender-dot.gender-female{ background:var(--female-text); }
+
+/* Empty states (requirement #60) */
+.empty-state{ text-align:center; padding:32px 12px; color:var(--text-faint); }
+.empty-state.small{ padding:16px 8px; font-size:13px; }
+.empty-title{ font-size:14px; font-weight:700; color:var(--text-soft); margin-bottom:4px; }
+.empty-sub{ font-size:12.5px; }
+
+/* Toasts */
+.toast-host{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; z-index:80; }
+.toast{
+  background:var(--text); color:#fff; padding:12px 18px; border-radius:var(--radius-sm);
+  font-size:13.5px; font-weight:600; box-shadow:var(--shadow); opacity:0; transform:translateY(10px);
+  transition:all .25s ease; max-width:90vw; text-align:center;
+}
+.toast.show{ opacity:1; transform:translateY(0); }
+.toast-danger{ background:var(--danger); }

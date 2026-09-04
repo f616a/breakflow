@@ -1,0 +1,47 @@
+/**
+ * css/variables.css
+ * Premium Corporate Dashboard identity: Navy / Off-white / Gold accent —
+ * calm, editorial, high-end. Personal accents (male/female) are scoped
+ * utilities — never the page theme.
+ */
+:root{
+  --primary-dark-teal:#1E2A42;   /* navy — headers, hero, selected pills */
+  --secondary-teal:#2A3752;      /* mid navy — buttons, active states */
+  --muted-teal:#8891A6;          /* muted slate-blue — secondary accents */
+  --bg:#F4F5FA;
+  --card:#FFFFFF;
+  --border:#E7E9F2;
+  --text:#1F2430;
+  --text-soft:#6B7280;
+  --text-faint:#98A0B3;
+
+  --gold:#D9A94D; --gold-soft:#FBF1DD;
+
+  --ok:#1F9D6B; --ok-soft:#E6F6EF;
+  --warn:#C77B18; --warn-soft:#FBF0DF;
+  --danger:#D8465F; --danger-soft:#FCE9EC;
+  --lock:#C7CBD6;
+
+  /* Personal accents — Time Slots, Selected Slot, Booking Badge, My Breaks,
+     Employee/Timeline indicator ONLY. The rest of the app stays Navy/White. */
+  --male-soft:#DDEFF6; --male-border:#A9D4E2; --male-text:#28677A;
+  --female-soft:#FAE9EE; --female-border:#EDC4D0; --female-text:#A45C70;
+
+  --radius-lg:22px; --radius-md:16px; --radius-sm:12px;
+  --shadow:0 1px 2px rgba(30,42,66,.05), 0 12px 28px -14px rgba(30,42,66,.18);
+  --shadow-soft:0 1px 2px rgba(30,42,66,.04), 0 6px 16px -10px rgba(30,42,66,.12);
+}
+
+[data-theme="dark"]{
+  --primary-dark-teal:#3A4A70; --secondary-teal:#465577; --muted-teal:#7C86A0;
+  --bg:#12151F; --card:#1B1F2C; --border:#2A3040;
+  --text:#EDEFF5; --text-soft:#A7ACC0; --text-faint:#6B7086;
+  --gold:#E3B968; --gold-soft:#3A311E;
+  --ok:#3FCC8C; --ok-soft:#173328; --warn:#E0A64C; --warn-soft:#3A2C14;
+  --danger:#F0748A; --danger-soft:#3A1E24; --lock:#3A4050;
+  --male-soft:#1B3550; --male-border:#2A4E70; --male-text:#8FC4E6;
+  --female-soft:#3A2230; --female-border:#5A3348; --female-text:#EBAFC5;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.5);
+  --shadow-soft:0 1px 2px rgba(0,0,0,.25), 0 6px 16px -10px rgba(0,0,0,.4);
+}
+

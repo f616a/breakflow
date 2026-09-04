@@ -1,0 +1,123 @@
+/**
+ * css/components.css — buttons, cards, pills, badges, panels shared
+ * across index.html / admin.html / amal.html.
+ */
+
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:24px; margin-bottom:18px; box-shadow:var(--shadow);
+}
+.card h2{ font-size:15px; font-weight:700; margin-bottom:4px; }
+.card .sub{ font-size:13px; color:var(--text-soft); margin-bottom:16px; }
+
+.btn{
+  border:none; border-radius:var(--radius-sm); padding:12px 18px; font-weight:700; font-size:13.5px;
+  cursor:pointer; transition:background .15s ease, transform .1s ease;
+}
+.btn:active{ transform:scale(.98); }
+.btn-primary{ background:var(--secondary-teal); color:#fff; }
+.btn-primary:hover{ background:var(--primary-dark-teal); }
+.btn-secondary{ background:var(--bg); border:1px solid var(--border); color:var(--text-soft); }
+.btn-block{ width:100%; }
+.btn-cta{
+  width:100%; padding:18px; font-size:15px; border-radius:var(--radius-md);
+  background:linear-gradient(135deg,var(--secondary-teal),var(--primary-dark-teal)); color:#fff;
+  border:none; font-weight:800; cursor:pointer; box-shadow:var(--shadow);
+}
+.btn-link{ background:none; border:none; font-weight:700; font-size:12.5px; cursor:pointer; padding:5px 10px; border-radius:999px; }
+.btn-link.btn-primary{ background:var(--secondary-teal); color:#fff; }
+.btn-link.btn-danger{ color:var(--danger); background:var(--danger-soft); }
+
+.icon-btn{
+  width:38px; height:38px; border-radius:10px; border:1px solid var(--border); background:var(--card);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-soft); font-size:15px;
+  position:relative;
+}
+.icon-btn:hover{ border-color:var(--secondary-teal); color:var(--secondary-teal); }
+
+.stat-card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px 16px; box-shadow:var(--shadow-soft); }
+.stat-card .num{ font-size:24px; font-weight:800; font-family:'Plus Jakarta Sans',sans-serif; }
+.stat-card .label{ font-size:11.5px; color:var(--text-soft); margin-top:4px; font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+
+/* ---- Person rows (Who's On Break Now / Next Up) ---- */
+.person-row{
+  display:flex; align-items:center; gap:10px; padding:12px 16px; border:1px solid var(--border);
+  border-radius:var(--radius-md); margin-bottom:8px; font-size:13.5px; font-weight:600;
+  background:var(--card); box-shadow:var(--shadow-soft);
+}
+.person-row.gender-male{ border-inline-start:4px solid var(--male-text); }
+.person-row.gender-female{ border-inline-start:4px solid var(--female-text); }
+.person-meta{ margin-inline-start:auto; font-size:12px; font-weight:600; color:var(--text-soft); }
+
+/* ---- Status card (employee balance during booking) ---- */
+.status-card{ margin-top:16px; padding:16px; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--bg); }
+.status-card.gender-male{ background:var(--male-soft); border-color:var(--male-border); }
+.status-card.gender-female{ background:var(--female-soft); border-color:var(--female-border); }
+.status-card .top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-weight:700; font-size:14px; }
+.progress-track{ height:8px; border-radius:999px; background:var(--border); overflow:hidden; }
+.progress-fill{ height:100%; background:var(--secondary-teal); border-radius:999px; transition:width .3s ease; }
+.gender-male .progress-fill{ background:var(--male-text); }
+.gender-female .progress-fill{ background:var(--female-text); }
+
+/* ---- Duration buttons ---- */
+.duration-row{ display:flex; gap:12px; margin-top:14px; }
+.duration-btn{ flex:1; padding:18px; border-radius:var(--radius-md); border:1.5px solid var(--border); background:var(--bg); cursor:pointer; text-align:center; font-weight:800; font-size:18px; }
+.duration-btn.selected{ background:var(--secondary-teal); border-color:var(--secondary-teal); color:#fff; }
+.duration-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+/* ---- Slot grid (gender-aware personal accent) ---- */
+.slot-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px; margin-top:12px; }
+.slot-pill{
+  padding:10px 8px; border-radius:var(--radius-sm); border:1.5px solid var(--border); background:var(--bg);
+  font-size:12.5px; font-weight:700; cursor:pointer; text-align:center; position:relative;
+}
+.slot-pill.selected{ background:var(--secondary-teal); border-color:var(--secondary-teal); color:#fff; }
+.slot-pill.disabled{ background:var(--border); color:var(--lock); cursor:not-allowed; opacity:.7; }
+.slot-pill.popular::after{ content:'●'; color:var(--warn); position:absolute; top:4px; inset-inline-end:6px; font-size:8px; }
+.slot-grid.gender-male .slot-pill:not(.disabled){ background:var(--male-soft); border-color:var(--male-border); color:var(--male-text); }
+.slot-grid.gender-male .slot-pill.selected{ background:var(--male-text); border-color:var(--male-text); color:#fff; }
+.slot-grid.gender-female .slot-pill:not(.disabled){ background:var(--female-soft); border-color:var(--female-border); color:var(--female-text); }
+.slot-grid.gender-female .slot-pill.selected{ background:var(--female-text); border-color:var(--female-text); color:#fff; }
+
+/* ---- Break rows / My Breaks / booking badges ---- */
+.break-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:8px; }
+.break-row.gender-male{ border-inline-start:4px solid var(--male-text); }
+.break-row.gender-female{ border-inline-start:4px solid var(--female-text); }
+.break-row .left{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.break-row .time{ font-weight:700; font-size:13.5px; }
+.badge-dur{ font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:var(--muted-teal); color:#fff; }
+.gender-male .badge-dur{ background:var(--male-text); }
+.gender-female .badge-dur{ background:var(--female-text); }
+.badge-status{ font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; background:var(--ok-soft); color:var(--ok); }
+.badge-status.badge-live{ background:var(--warn-soft); color:var(--warn); }
+
+/* ---- Today's Break Schedule cards ---- */
+.schedule-item{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 16px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--card); margin-bottom:10px; box-shadow:var(--shadow-soft); }
+.schedule-item.gender-male{ border-inline-start:4px solid var(--male-text); }
+.schedule-item.gender-female{ border-inline-start:4px solid var(--female-text); }
+.schedule-time{ font-weight:800; font-size:14px; min-width:190px; }
+.schedule-name{ font-weight:700; font-size:13.5px; display:flex; align-items:center; }
+.schedule-badges{ display:flex; gap:8px; margin-inline-start:auto; }
+
+/* ---- Notification panel ---- */
+.notif-panel{ position:absolute; top:52px; inset-inline-end:0; width:300px; max-height:360px; overflow-y:auto; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow); z-index:40; padding:10px; }
+.notif-item{ padding:10px; border-radius:var(--radius-sm); cursor:pointer; margin-bottom:4px; }
+.notif-item.notif-unread{ background:var(--bg); }
+.notif-title{ font-size:12.5px; font-weight:700; }
+.notif-body{ font-size:12px; color:var(--text-soft); }
+.notif-badge{ position:absolute; top:-4px; inset-inline-end:-4px; background:var(--danger); color:#fff; font-size:10px; font-weight:800; border-radius:999px; min-width:16px; height:16px; display:flex; align-items:center; justify-content:center; padding:0 3px; }
+
+/* ---- Lock screen (Amal + Admin) ---- */
+.lock-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+.lock-card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:32px 28px; max-width:360px; width:100%; text-align:center; }
+.lock-card input{ width:100%; padding:12px 14px; border-radius:var(--radius-sm); border:1.5px solid var(--border); text-align:center; font-size:16px; margin:16px 0; }
+.lock-card .lock-msg{ font-size:13.5px; color:var(--text-soft); min-height:20px; margin-top:10px; }
+
+/* ---- Simple table (admin / amal) ---- */
+.data-table{ width:100%; border-collapse:collapse; font-size:13px; }
+.data-table th{ text-align:start; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.03em; padding:8px 10px; border-bottom:1px solid var(--border); }
+.data-table td{ padding:10px; border-bottom:1px solid var(--border); }
+
+.field{ margin-bottom:14px; }
+.field label{ display:block; font-size:12px; font-weight:700; color:var(--text-soft); margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em; }
+.field input, .field select{ width:100%; padding:10px 12px; border-radius:var(--radius-sm); border:1.5px solid var(--border); font-size:13.5px; background:var(--bg); color:var(--text); }

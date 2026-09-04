@@ -1,0 +1,18 @@
+/**
+ * css/responsive.css — mobile-first breakpoints. Most employees will
+ * open this from a phone (requirement #53), so base styles in the
+ * other files are already tuned for narrow screens; this file only
+ * adjusts what needs to change on wider screens plus a few small-screen
+ * fixes for dense components (tables, grids).
+ */
+@media (max-width:640px){
+  .card-row, .stat-row{ grid-template-columns:repeat(2,1fr); }
+  .duration-row{ flex-direction:column; }
+  .notif-panel{ width:calc(100vw - 32px); inset-inline-end:-8px; }
+  .data-table{ display:block; overflow-x:auto; white-space:nowrap; }
+}
+
+@media (min-width:900px){
+  .card-row{ grid-template-columns:repeat(3,1fr); }
+  .stat-row{ grid-template-columns:repeat(5,1fr); }
+}

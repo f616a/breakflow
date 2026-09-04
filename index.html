@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ar" id="htmlRoot">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BreakFlow — Employee Break Management</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/global.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="page-nav">
+    <a href="index.html" class="active"><span class="nav-icon">🏠</span><span data-i18n="navHome">Home</span></a>
+    <a href="amal.html"><span class="nav-icon">✨</span><span data-i18n="navAmal">Amal's Space</span></a>
+    <a href="admin.html"><span class="nav-icon">⚙</span><span data-i18n="navAdmin">Admin</span></a>
+  </nav>
+
+  <!-- Top bar: date badge + brand -->
+  <div class="top-bar">
+    <span class="date-badge" id="dateBadge">—</span>
+    <div class="brand-block">
+      <div class="brand-title" data-i18n="appName">BreakFlow</div>
+      <div class="brand-sub" data-i18n="tagline">البوابة الداخلية لحجز البريكات</div>
+    </div>
+  </div>
+
+  <!-- Pill toggles: theme + language + notifications -->
+  <div class="pill-toggle-row">
+    <div class="pill-toggle">
+      <button id="themeLightBtn" class="active">☀️ <span data-i18n="lightMode">Light</span></button>
+      <button id="themeDarkBtn">🌙 <span data-i18n="darkMode">Dark</span></button>
+    </div>
+    <div class="pill-toggle">
+      <button id="langToggleBtn" class="active">🌐 AR | EN</button>
+    </div>
+    <div style="position:relative;">
+      <button class="icon-btn" id="notifBellBtn" aria-label="Notifications">
+        🔔<span class="notif-badge hidden" id="notifUnreadBadge"></span>
+      </button>
+      <div class="notif-panel hidden" id="notifPanel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <strong style="font-size:13px;" data-i18n="notifications">Notifications</strong>
+          <button class="btn-link" id="markAllReadBtn" data-i18n="markAllRead">Mark all as read</button>
+        </div>
+        <div id="notifList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar: time-of-day greeting -->
+  <div class="status-bar">
+    <span class="status-icon">💬</span>
+    <div>
+      <div id="greetingTitle">—</div>
+      <div class="greeting-date" id="greetingDate" style="margin-top:2px;">—</div>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <div class="hero-grid">
+    <div class="hero-card">
+      <div>
+        <div class="hero-label" data-i18n="currentMonth">الشهر الحالي</div>
+        <div class="hero-month" id="heroMonth">—</div>
+        <div class="hero-year" id="heroYear">—</div>
+      </div>
+      <div class="hero-quote" id="heroQuote" data-i18n="heroQuote">الراحة الجيدة جزء من الإنتاجية، مو ضدها.</div>
+    </div>
+    <div class="hero-content">
+      <div class="hero-eyebrow" data-i18n="heroEyebrow">أهلاً وسهلاً بالفريق</div>
+      <div class="hero-headline" data-i18n="heroHeadline">بريكاتكم وجدولكم اليوم، في مكان واحد.</div>
+      <div class="hero-sub" data-i18n="heroSub">احجزي بريكك، شوفي مين على بريك الحين، وتابعي جدول اليوم — كل شي بصفحة وحدة.</div>
+      <div class="hero-links">
+        <a href="#scheduleSection" class="hero-link-card">
+          <span class="badge-icon">📅</span>
+          <div>
+            <div class="link-title" data-i18n="todaysSchedule">Today's Break Schedule</div>
+            <div class="link-sub" data-i18n="jumpToSchedule">شوفي الجدول</div>
+          </div>
+        </a>
+        <a href="#myBreaksSection" class="hero-link-card">
+          <span class="badge-icon navy">🧍</span>
+          <div>
+            <div class="link-title" data-i18n="myBreaks">My Breaks</div>
+            <div class="link-sub" data-i18n="jumpToMyBreaks">بريكاتك الحين</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Break window notice -->
+  <div class="notice-bar">
+    <span class="badge-icon navy">🕐</span>
+    <div>
+      <div class="notice-text" id="noticeBarText">—</div>
+      <div class="notice-sub" data-i18n="noticeBarSub">يرجى الالتزام بالعودة بالوقت المحدد.</div>
+    </div>
+  </div>
+
+  <!-- Who's On Break Now -->
+  <div class="section-heading">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div>
+        <h2 data-i18n="whosOnBreak">Who's On Break Now</h2>
+        <div class="sub" data-i18n="whosOnBreakSub">آخر تحديث لحالة الفريق</div>
+      </div>
+      <span class="capacity-pill" id="capacityLabel">0 / 0</span>
+    </div>
+  </div>
+  <div id="onBreakList" style="margin-bottom:24px;"></div>
+
+  <!-- Book a Break CTA -->
+  <button class="btn-cta" id="bookBreakBtn" data-i18n="bookABreak">BOOK A BREAK</button>
+
+  <!-- Next Up -->
+  <div class="card" style="margin-top:18px;">
+    <h2 data-i18n="nextUp">Next Up</h2>
+    <div id="nextUpList"></div>
+  </div>
+
+  <!-- Progressive Booking Flow -->
+  <div class="card hidden" id="bookingPanel">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 data-i18n="bookABreak">BOOK A BREAK</h2>
+      <button class="btn-link" id="closeBookingBtn">✕</button>
+    </div>
+
+    <label class="field" style="margin-top:10px;">
+      <span data-i18n="selectEmployee" style="display:block;margin-bottom:6px;font-weight:700;font-size:12px;color:var(--text-soft);text-transform:uppercase;">Select Employee</span>
+      <select id="stepEmployeeSelect"></select>
+    </label>
+    <div class="status-card hidden" id="employeeStatusCard">
+      <div class="top"><span id="statusName"></span><span id="statusBalance"></span></div>
+      <div class="progress-track"><div class="progress-fill" id="statusFill"></div></div>
+    </div>
+
+    <div class="hidden" id="stepDuration">
+      <h2 style="margin-top:18px;" data-i18n="chooseDuration">Choose Break Duration</h2>
+      <div class="duration-row">
+        <button class="duration-btn" id="btnDur15">15</button>
+        <button class="duration-btn" id="btnDur30">30</button>
+      </div>
+    </div>
+
+    <div class="hidden" id="stepTime">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;">
+        <h2 data-i18n="pickTime">Pick a Time</h2>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-link btn-secondary" id="findNextBtn" data-i18n="findNextAvailable">Find Next Available</button>
+          <button class="btn-link btn-secondary" id="bestTimeBtn" data-i18n="bestTime">Best Time</button>
+        </div>
+      </div>
+      <div class="slot-grid" id="slotGrid"></div>
+    </div>
+
+    <div class="hidden" id="stepConfirm">
+      <h2 style="margin-top:18px;" data-i18n="confirmBreak">Confirm Break</h2>
+      <div id="confirmSummary" style="font-size:13.5px;display:flex;flex-direction:column;gap:6px;margin-bottom:14px;"></div>
+      <button class="btn btn-primary btn-block" id="confirmBookingBtn" data-i18n="confirmBtn">CONFIRM BREAK</button>
+    </div>
+  </div>
+
+  <!-- Today's Break Schedule -->
+  <div class="card" id="scheduleSection">
+    <h2 data-i18n="todaysSchedule">Today's Break Schedule</h2>
+    <div id="scheduleList"></div>
+  </div>
+
+  <!-- My Breaks -->
+  <div class="card" id="myBreaksSection">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 data-i18n="myBreaks">My Breaks</h2>
+      <span id="myBreaksSummary" style="font-size:12.5px;color:var(--text-soft);font-weight:600;"></span>
+    </div>
+    <div id="myBreaksList"></div>
+  </div>
+
+  <!-- Swap Requests -->
+  <div class="card">
+    <h2 data-i18n="swapRequests">Swap Requests</h2>
+    <p class="sub" data-i18n="swapRequestsSub">Swaps only trade the booked time — never your break balance.</p>
+    <div id="swapRequestsList"></div>
+  </div>
+
+  <footer class="app-footer" id="footerCredit"></footer>
+
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/employees.js"></script>
+<script src="js/attendance.js"></script>
+<script src="js/translations.js"></script>
+<script src="js/message-service.js"></script>
+<script src="js/auth.js"></script>
+<script src="services/local-storage-service.js"></script>
+<script src="services/data-service.js"></script>
+<script src="js/booking.js"></script>
+<script src="js/schedule.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

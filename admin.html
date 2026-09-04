@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en" id="htmlRoot">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — BreakFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/global.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+
+<div class="lock-screen" id="adminLockScreen">
+  <div class="lock-card">
+    <h2>Admin Settings</h2>
+    <p style="color:var(--text-soft);font-size:13.5px;margin-top:8px;">Manager password required.</p>
+    <input type="password" id="adminPasswordInput" placeholder="••••">
+    <button class="btn btn-primary btn-block" id="adminUnlockBtn">Unlock</button>
+    <div class="lock-msg" id="adminLockMsg"></div>
+    <a href="index.html" style="display:inline-block;margin-top:14px;font-size:12.5px;color:var(--text-soft);">← Home</a>
+  </div>
+</div>
+
+<div class="wrap hidden" id="adminDashboard">
+  <nav class="page-nav">
+    <a href="index.html"><span class="nav-icon">🏠</span><span>Home</span></a>
+    <a href="amal.html"><span class="nav-icon">✨</span><span>Amal's Space</span></a>
+    <a href="admin.html" class="active"><span class="nav-icon">⚙</span><span>Admin</span></a>
+  </nav>
+
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">⚙</div>
+      <div class="brand-name">Admin Settings</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Break Rules</h2>
+    <p class="sub">Every value here is read live by the booking engine — nothing is hardcoded.</p>
+    <div class="card-row">
+      <label class="field"><label>Shift Start</label><input type="time" id="cfgShiftStart"></label>
+      <label class="field"><label>Shift End</label><input type="time" id="cfgShiftEnd"></label>
+      <label class="field"><label>Break Window Start</label><input type="time" id="cfgWindowStart"></label>
+    </div>
+    <div class="card-row">
+      <label class="field"><label>Break Window End</label><input type="time" id="cfgWindowEnd"></label>
+      <label class="field"><label>Daily Allowance (min)</label><input type="number" id="cfgDailyAllowance" step="15"></label>
+      <label class="field"><label>Max Continuous (min)</label><input type="number" id="cfgMaxContinuous" step="15"></label>
+    </div>
+    <label class="field" style="max-width:220px;"><label>Max Concurrent Breaks</label><input type="number" id="cfgMaxConcurrent" min="1"></label>
+    <button class="btn btn-primary" id="saveConfigBtn">Save Rules</button>
+  </div>
+
+  <div class="card">
+    <h2>Employees</h2>
+    <p class="sub">Name (Arabic), Name (English), Gender — drives the personal accent color.</p>
+    <div id="employeeEditorList"></div>
+    <button class="btn btn-primary" id="saveEmployeesBtn">Save Employees</button>
+  </div>
+
+  <div class="card">
+    <h2>Attendance</h2>
+    <p class="sub">Who works which day. Unchecked = off that day, won't appear in booking options.</p>
+    <table class="data-table" id="attendanceTable"></table>
+    <button class="btn btn-primary" style="margin-top:12px;" id="saveAttendanceBtn">Save Attendance</button>
+  </div>
+
+  <div class="card">
+    <h2>All Bookings</h2>
+    <table class="data-table">
+      <thead><tr><th>Day</th><th>Employee</th><th>Start</th><th>End</th><th>Status</th><th></th></tr></thead>
+      <tbody id="allBookingsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Book on Behalf of an Employee</h2>
+    <div class="card-row">
+      <label class="field"><label>Day</label><select id="adminBookDay"></select></label>
+      <label class="field"><label>Employee</label><select id="adminBookEmployee"></select></label>
+      <label class="field"><label>Duration</label>
+        <select id="adminBookDuration"><option value="15">15 MIN</option><option value="30">30 MIN</option></select>
+      </label>
+    </div>
+    <label class="field"><label>Time Slot</label><select id="adminBookSlot"></select></label>
+    <button class="btn btn-primary" id="adminBookSubmitBtn">Create Booking</button>
+  </div>
+
+  <div class="card hidden" id="demoResetSection">
+    <h2>Developer / Demo</h2>
+    <p class="sub">Only visible while CONFIG.demoMode is true. Clears all demo bookings and notifications.</p>
+    <button class="btn btn-secondary" id="resetDemoDataBtn">Reset Demo Data</button>
+  </div>
+
+  <footer class="app-footer" id="footerCredit"></footer>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/employees.js"></script>
+<script src="js/attendance.js"></script>
+<script src="js/translations.js"></script>
+<script src="js/message-service.js"></script>
+<script src="js/auth.js"></script>
+<script src="services/local-storage-service.js"></script>
+<script src="services/data-service.js"></script>
+<script src="js/booking.js"></script>
+<script src="js/schedule.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
