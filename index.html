@@ -22,6 +22,17 @@
     <a href="admin.html"><span class="nav-icon">⚙</span><span data-i18n="navAdmin">Admin</span></a>
   </nav>
 
+  <!-- Who am I — always visible, picks the personal page for this device -->
+  <div class="card" id="whoAmICard">
+    <h2 data-i18n="whoAmI">من أنتِ؟</h2>
+    <p class="sub" data-i18n="whoAmISub">اختاري اسمك عشان تشوفي صفحتك: رصيدك، بريكاتك، وأوقاتك.</p>
+    <select id="whoAmISelect"></select>
+    <div class="status-card hidden" id="employeeStatusCard">
+      <div class="top"><span id="statusName"></span><span id="statusBalance"></span></div>
+      <div class="progress-track"><div class="progress-fill" id="statusFill"></div></div>
+    </div>
+  </div>
+
   <!-- Top bar: date badge + brand -->
   <div class="top-bar">
     <span class="date-badge" id="dateBadge">—</span>
@@ -131,15 +142,6 @@
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <h2 data-i18n="bookABreak">BOOK A BREAK</h2>
       <button class="btn-link" id="closeBookingBtn">✕</button>
-    </div>
-
-    <label class="field" style="margin-top:10px;">
-      <span data-i18n="selectEmployee" style="display:block;margin-bottom:6px;font-weight:700;font-size:12px;color:var(--text-soft);text-transform:uppercase;">Select Employee</span>
-      <select id="stepEmployeeSelect"></select>
-    </label>
-    <div class="status-card hidden" id="employeeStatusCard">
-      <div class="top"><span id="statusName"></span><span id="statusBalance"></span></div>
-      <div class="progress-track"><div class="progress-fill" id="statusFill"></div></div>
     </div>
 
     <div class="hidden" id="stepDuration">
