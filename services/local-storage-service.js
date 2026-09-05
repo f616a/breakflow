@@ -242,18 +242,15 @@ const LocalStorageDataService = (() => {
     // real booking rule (evaluateSlot from js/booking.js) for each side's
     // NEW time — excluding their own two bookings from the conflict set.
     const otherBookings = bookings.filter(b => b.id !== fromBooking.id && b.id !== toBooking.id);
-    const check = (employeeId, day, start, end, excludeId) => {
-      const stash = getBookings;
+    const check = (employeeId, day, start, end) => {
       const original = safeGet(KEYS.bookings, []);
-      safeSet(KEYS.bookings, otherBookings.concat(
-        original.filter(b => b.id !== fromBooking.id && b.id !== toBooking.id && b.id !== excludeId)
-      ));
+      safeSet(KEYS.bookings, otherBookings);
       const result = evaluateSlot(employeeId, day, start, end);
       safeSet(KEYS.bookings, original); // restore immediately — this is a dry run
       return result;
     };
-    const fromCheck = check(fromBooking.employeeId, toBooking.day, toBooking.start, toBooking.end, fromBooking.id);
-    const toCheck = check(toBooking.employeeId, fromBooking.day, fromBooking.start, fromBooking.end, toBooking.id);
+    const fromCheck = check(fromBooking.employeeId, toBooking.day, toBooking.start, toBooking.end);
+    const toCheck = check(toBooking.employeeId, fromBooking.day, fromBooking.start, fromBooking.end);
     if (fromCheck.status !== "available" || toCheck.status !== "available") {
       return { ok: false, reasonKey: "swapNoLongerValid" };
     }
