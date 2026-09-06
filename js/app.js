@@ -361,8 +361,13 @@ function renderSwapRequests() {
     const name = fromEmp ? (i18n.current === "ar" ? fromEmp.name : fromEmp.nameEn) : "?";
     return `
       <div class="break-row gender-${fromEmp ? fromEmp.gender : ""}">
-        <div class="left">
-          <span class="time">${name}: ${rangeLabel(fromBooking.start, fromBooking.end)} → ${rangeLabel(toBooking.start, toBooking.end)}</span>
+        <div class="left" style="flex-direction:column;align-items:flex-start;gap:6px;">
+          <span style="font-weight:700;">${name}</span>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span class="time">${rangeLabel(fromBooking.start, fromBooking.end)}</span>
+            <span>→</span>
+            <span class="time">${rangeLabel(toBooking.start, toBooking.end)}</span>
+          </div>
         </div>
         <div class="row-actions">
           <button class="btn-link btn-primary" data-swap-accept="${s.id}">${i18n.t("accept")}</button>
@@ -388,23 +393,30 @@ function renderSwapRequests() {
 // BOOKING FLOW (progressive: employee -> duration -> time -> confirm)
 // -----------------------------------------------------------------
 function openBookingFlow() {
+  if (!homeState.employeeId) {
+    NotificationCenter.showToast(i18n.t("pickNameFirst"), "danger");
+    el("whoAmICard").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
   homeState.step = 1;
   el("bookingPanel").classList.remove("hidden");
-  renderEmployeeStep();
+  el("stepDuration").classList.remove("hidden");
+  el("stepTime").classList.add("hidden");
+  el("stepConfirm").classList.add("hidden");
+  renderDurationButtons();
   el("bookingPanel").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function renderEmployeeStep() {
-  const select = el("stepEmployeeSelect");
+function renderWhoAmISelect() {
+  const select = el("whoAmISelect");
   const options = dataService.getEmployees();
   select.innerHTML = `<option value="">${i18n.t("selectEmployee")}…</option>` +
     options.map(e => `<option value="${e.id}" ${e.id === homeState.employeeId ? "selected" : ""}>${i18n.current === "ar" ? e.name : e.nameEn}</option>`).join("");
-  renderEmployeeStatusCard();
 }
 
 function renderEmployeeStatusCard() {
   const card = el("employeeStatusCard");
-  if (!homeState.employeeId) { card.classList.add("hidden"); el("stepDuration").classList.add("hidden"); return; }
+  if (!homeState.employeeId) { card.classList.add("hidden"); return; }
   const emp = getEmployeeById(homeState.employeeId);
   const cfg = dataService.getConfig();
   const used = usedMinutes(homeState.employeeId, homeState.day);
@@ -415,9 +427,6 @@ function renderEmployeeStatusCard() {
   el("statusName").innerHTML = `<span class="gender-dot gender-${emp.gender}"></span>${i18n.current === "ar" ? emp.name : emp.nameEn}`;
   el("statusBalance").textContent = remaining > 0 ? `${remaining} ${i18n.t("remaining")}` : i18n.t("balanceCompleted");
   el("statusFill").style.width = `${Math.min(100, (used / cfg.dailyBreakMinutes) * 100)}%`;
-
-  el("stepDuration").classList.remove("hidden");
-  renderDurationButtons();
 }
 
 function renderDurationButtons() {
@@ -564,6 +573,8 @@ function renderFooterCredit() {
 function renderAll() {
   renderGreeting();
   renderTopBarAndHero();
+  renderWhoAmISelect();
+  renderEmployeeStatusCard();
   renderWhosOnBreak();
   renderNextUp();
   renderTodaysSchedule();
@@ -571,22 +582,24 @@ function renderAll() {
   renderSwapRequests();
   renderFooterCredit();
   NotificationCenter.renderBell();
-  if (homeState.step > 0) renderEmployeeStatusCard();
 }
 
-function initApp() {
+async function initApp() {
   i18n.init();
   applyTheme(getStoredTheme());
+  await dataService.ready; // wait for the initial Supabase load before first render
+  if (dataService.onChange) dataService.onChange(renderAll); // live updates from other devices
   renderAll();
 
   el("bookBreakBtn").addEventListener("click", openBookingFlow);
-  el("stepEmployeeSelect").addEventListener("change", e => {
+  el("whoAmISelect").addEventListener("change", e => {
     homeState.employeeId = e.target.value ? Number(e.target.value) : null;
     homeState.duration = null;
     homeState.selectedSlot = null;
+    homeState.step = 0;
+    el("bookingPanel").classList.add("hidden");
     if (homeState.employeeId) setStoredEmployeeId(homeState.employeeId);
-    renderEmployeeStatusCard();
-    renderGreeting();
+    renderAll();
   });
   el("btnDur15").addEventListener("click", () => chooseDuration(15));
   el("btnDur30").addEventListener("click", () => chooseDuration(30));

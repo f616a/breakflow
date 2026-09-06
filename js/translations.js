@@ -43,6 +43,8 @@ const TRANSLATIONS = {
     noBreaksTitle: "No breaks booked yet.", noBreaksSub: "Today's schedule will appear here.",
 
     selectEmployee: "Select Employee", chooseDuration: "Choose Break Duration",
+    whoAmI: "Who are you?", whoAmISub: "Pick your name to see your page: balance, breaks, and times.",
+    pickNameFirst: "Pick your name up top first.",
     pickTime: "Pick a Time", confirmBreak: "Confirm Break",
     findNextAvailable: "Find Next Available", bestTime: "Best Time",
     breakBalance: "Break Balance", booked: "Booked", remaining: "Remaining",
@@ -103,6 +105,8 @@ const TRANSLATIONS = {
     noBreaksTitle: "ما فيه بريكات محجوزة بعد.", noBreaksSub: "جدول اليوم بيظهر هنا.",
 
     selectEmployee: "اختر الموظف", chooseDuration: "اختر مدة البريك",
+    whoAmI: "من أنتِ؟", whoAmISub: "اختاري اسمك عشان تشوفي صفحتك: رصيدك، بريكاتك، وأوقاتك.",
+    pickNameFirst: "اختاري اسمك فوق أول شي.",
     pickTime: "اختر الوقت", confirmBreak: "تأكيد البريك",
     findNextAvailable: "أقرب وقت متاح", bestTime: "أفضل وقت",
     breakBalance: "رصيد البريك", booked: "محجوز", remaining: "متبقي",

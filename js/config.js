@@ -37,7 +37,9 @@ const CONFIG = {
 
   // Demo-mode flag. When true, seed data may be loaded and a "Reset Demo
   // Data" control may be shown. Set to false before a real deployment.
-  demoMode: true
+  // FALSE now that this app is backed by a real shared Supabase database —
+  // "Reset Demo Data" would wipe everyone's real bookings, so it's hidden.
+  demoMode: false
 };
 
 // Days, in fixed calendar order — used everywhere so "day" always means

@@ -277,8 +277,11 @@ function renderFooterCredit() {
   node.textContent = i18n.t("footerCredit", { name });
 }
 
-function initAmal() {
+async function initAmal() {
   i18n.init();
+  await dataService.ready; // wait for the initial Supabase load
+  if (dataService.onChange) dataService.onChange(() => { if (amalUnlocked) renderAmalDashboard(); });
+
   el("amalPasswordPrompt").textContent = i18n.t("amalPasswordPrompt");
   el("amalUnlockBtn").addEventListener("click", tryUnlock);
   el("amalPasswordInput").addEventListener("keydown", e => { if (e.key === "Enter") tryUnlock(); });

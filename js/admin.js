@@ -204,8 +204,11 @@ function renderAdminAll() {
   renderFooterCredit();
 }
 
-function initAdmin() {
+async function initAdmin() {
   i18n.init();
+  await dataService.ready; // wait for the initial Supabase load
+  if (dataService.onChange) dataService.onChange(() => { if (adminUnlocked) renderAdminAll(); });
+
   el("adminUnlockBtn").addEventListener("click", tryAdminUnlock);
   el("adminPasswordInput").addEventListener("keydown", e => { if (e.key === "Enter") tryAdminUnlock(); });
 
