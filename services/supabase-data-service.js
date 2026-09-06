@@ -182,14 +182,15 @@ const SupabaseDataService = (() => {
   // booking the same popular slot at the same instant can never both win.
   // If the server rejects it (lost the race, or the slot filled up in the
   // split second between our check and the write), we roll the optimistic
-  // entry back out and tell the person.
+  // entry back out and tell the person. Only ONE message (success OR
+  // rejection) is ever shown, and only once the server has actually spoken.
   function createBooking({ day, employeeId, start, end, duration, reason }) {
     const id = newId();
     const booking = {
       id, day, employeeId, start, end, duration, reason: reason || "", status: "confirmed",
       bookedAt: new Date().toISOString(), startedAt: null, completedAt: null, cancelledAt: null
     };
-    cache.bookings.push(booking);
+    cache.bookings.push(booking); // instant UI feedback — the slot list updates right away
 
     client.rpc("create_booking_safe", {
       p_id: id, p_day: day, p_employee_id: employeeId, p_start: start, p_end: end,
@@ -202,6 +203,15 @@ const SupabaseDataService = (() => {
         if (window.NotificationCenter) {
           NotificationCenter.showToast("That time was just taken — please pick another slot.", "danger");
         }
+      } else if (window.NotificationCenter && window.MessageService && window.i18n) {
+        const emp = cache.employees.find(e => e.id === employeeId);
+        NotificationCenter.notify(
+          "✓ " + i18n.t("confirmBreak"),
+          MessageService.getMessage({
+            event: "bookingConfirmed", locale: i18n.current, gender: emp ? emp.gender : "neutral",
+            employeeId, args: [null, rangeLabel(start, end)]
+          })
+        );
       }
     });
 
