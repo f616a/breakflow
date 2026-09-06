@@ -151,4 +151,264 @@ const SupabaseDataService = (() => {
   function setupRealtime() {
     client.channel("public:bookings").on("postgres_changes", { event: "*", schema: "public", table: "bookings" },
       async () => { await refreshBookings(); notifyChange(); }).subscribe();
-    client.channel("public:swaps").on("postgres_changes", { event: "*", schema: "public", table:
+    client.channel("public:swaps").on("postgres_changes", { event: "*", schema: "public", table: "swaps" },
+      async () => { await refreshSwaps(); notifyChange(); }).subscribe();
+    client.channel("public:attendance").on("postgres_changes", { event: "*", schema: "public", table: "attendance" },
+      async () => { await refreshAttendance(); notifyChange(); }).subscribe();
+    client.channel("public:employees").on("postgres_changes", { event: "*", schema: "public", table: "employees" },
+      async () => { await refreshEmployees(); notifyChange(); }).subscribe();
+    client.channel("public:app_config").on("postgres_changes", { event: "*", schema: "public", table: "app_config" },
+      async () => { await refreshConfig(); Object.assign(CONFIG, cache.config); notifyChange(); }).subscribe();
+    client.channel("public:notifications").on("postgres_changes", { event: "*", schema: "public", table: "notifications" },
+      async () => { await refreshNotifications(); notifyChange(); }).subscribe();
+  }
+
+  async function init() {
+    await Promise.all([refreshEmployees(), refreshAttendance(), refreshConfig(), refreshBookings(), refreshSwaps(), refreshNotifications(), refreshActivityLog()]);
+    await ensureSeeded();
+    setupRealtime();
+    readyResolve();
+  }
+
+  // ---------------------------------------------------------------
+  // BOOKINGS
+  // ---------------------------------------------------------------
+  function getBookings() { return cache.bookings; }
+
+  // Optimistic + server-authoritative: the booking appears instantly in the
+  // UI (good for the common case), but the REAL decision is made atomically
+  // inside Postgres via the create_booking_safe() function (see README /
+  // supabase-setup.sql) — it takes a per-day advisory lock so two devices
+  // booking the same popular slot at the same instant can never both win.
+  // If the server rejects it (lost the race, or the slot filled up in the
+  // split second between our check and the write), we roll the optimistic
+  // entry back out and tell the person.
+  function createBooking({ day, employeeId, start, end, duration, reason }) {
+    const id = newId();
+    const booking = {
+      id, day, employeeId, start, end, duration, reason: reason || "", status: "confirmed",
+      bookedAt: new Date().toISOString(), startedAt: null, completedAt: null, cancelledAt: null
+    };
+    cache.bookings.push(booking);
+
+    client.rpc("create_booking_safe", {
+      p_id: id, p_day: day, p_employee_id: employeeId, p_start: start, p_end: end,
+      p_duration: duration, p_reason: booking.reason
+    }).then(({ data, error }) => {
+      if (error || !data || !data.ok) {
+        if (error) console.error("create_booking_safe", error);
+        cache.bookings = cache.bookings.filter(b => b.id !== id);
+        notifyChange();
+        if (window.NotificationCenter) {
+          NotificationCenter.showToast("That time was just taken — please pick another slot.", "danger");
+        }
+      }
+    });
+
+    logActivity(`${empName(employeeId)} booked ${minutesToLabel(start)}–${minutesToLabel(end)}`);
+    return booking;
+  }
+
+  function cancelBooking(id) {
+    const booking = cache.bookings.find(b => b.id === id);
+    if (!booking) return null;
+    booking.status = "cancelled";
+    booking.cancelledAt = new Date().toISOString();
+    client.from("bookings").update({ status: "cancelled", cancelled_at: booking.cancelledAt }).eq("id", id)
+      .then(({ error }) => { if (error) console.error("cancelBooking", error); });
+    logActivity(`${empName(booking.employeeId)} cancelled ${minutesToLabel(booking.start)}–${minutesToLabel(booking.end)}`);
+    return booking;
+  }
+
+  function updateBookingStatus(id, status, extra) {
+    const booking = cache.bookings.find(b => b.id === id);
+    if (!booking) return null;
+    booking.status = status;
+    Object.assign(booking, extra || {});
+    const patch = { status };
+    if (extra && "startedAt" in extra) patch.started_at = extra.startedAt;
+    if (extra && "completedAt" in extra) patch.completed_at = extra.completedAt;
+    client.from("bookings").update(patch).eq("id", id).then(({ error }) => { if (error) console.error("updateBookingStatus", error); });
+    return booking;
+  }
+
+  // ---------------------------------------------------------------
+  // CONFIG
+  // ---------------------------------------------------------------
+  function getConfig() { return Object.assign({}, CONFIG, cache.config); }
+  function updateConfig(patch) {
+    const merged = Object.assign({}, getConfig(), patch);
+    cache.config = merged;
+    Object.assign(CONFIG, merged);
+    client.from("app_config").upsert({ id: 1, data: merged }).then(({ error }) => { if (error) console.error("updateConfig", error); });
+    logActivity("Admin updated system configuration");
+    return merged;
+  }
+
+  // ---------------------------------------------------------------
+  // EMPLOYEES
+  // ---------------------------------------------------------------
+  function getEmployees() { return cache.employees; }
+  function updateEmployees(list) {
+    cache.employees = list;
+    const rows = list.map(e => ({ id: e.id, name: e.name, name_en: e.nameEn, gender: e.gender }));
+    client.from("employees").upsert(rows).then(({ error }) => { if (error) console.error("updateEmployees", error); });
+    logActivity("Admin updated the employee roster");
+    return list;
+  }
+
+  // ---------------------------------------------------------------
+  // ATTENDANCE
+  // ---------------------------------------------------------------
+  function getAttendance() { return cache.attendance; }
+  function updateAttendance(newAttendance) {
+    cache.attendance = newAttendance;
+    const rows = [];
+    Object.keys(newAttendance).forEach(day => (newAttendance[day] || []).forEach(id => rows.push({ day, employee_id: id })));
+    client.from("attendance").delete().neq("day", "___never___")
+      .then(() => client.from("attendance").insert(rows))
+      .then(({ error }) => { if (error) console.error("updateAttendance", error); });
+    logActivity("Admin updated the attendance schedule");
+    return newAttendance;
+  }
+
+  // ---------------------------------------------------------------
+  // NOTIFICATIONS (global feed — see file header note)
+  // ---------------------------------------------------------------
+  function getNotifications() { return cache.notifications; }
+  function addNotification({ title, body, type }) {
+    const n = { id: newId(), title, body, type: type || "info", read: false, createdAt: new Date().toISOString() };
+    cache.notifications.unshift(n);
+    cache.notifications = cache.notifications.slice(0, 100);
+    client.from("notifications").insert({ id: n.id, title, body, type: n.type, read: false, created_at: n.createdAt })
+      .then(({ error }) => { if (error) console.error("addNotification", error); });
+    return n;
+  }
+  function markNotificationRead(id) {
+    const n = cache.notifications.find(x => x.id === id);
+    if (n) n.read = true;
+    client.from("notifications").update({ read: true }).eq("id", id).then(({ error }) => { if (error) console.error("markNotificationRead", error); });
+  }
+  function markAllNotificationsRead() {
+    cache.notifications.forEach(n => { n.read = true; });
+    client.from("notifications").update({ read: true }).eq("read", false).then(({ error }) => { if (error) console.error("markAllNotificationsRead", error); });
+  }
+
+  // ---------------------------------------------------------------
+  // ACTIVITY LOG
+  // ---------------------------------------------------------------
+  function getActivityLog() { return cache.activityLog; }
+  function logActivity(action) {
+    const entry = { ts: new Date().toISOString(), action };
+    cache.activityLog.unshift(entry);
+    cache.activityLog = cache.activityLog.slice(0, 200);
+    client.from("activity_log").insert({ ts: entry.ts, action }).then(({ error }) => { if (error) console.error("logActivity", error); });
+  }
+
+  // ---------------------------------------------------------------
+  // SWAP REQUESTS — identical rules to the local-storage version; see
+  // services/local-storage-service.js for the fully-commented original.
+  // ---------------------------------------------------------------
+  function getSwapRequests() { expireOldSwaps(); return cache.swaps; }
+
+  function createSwapRequest(fromBookingId, toBookingId) {
+    const fromBooking = cache.bookings.find(b => b.id === fromBookingId);
+    const toBooking = cache.bookings.find(b => b.id === toBookingId);
+    if (!fromBooking || !toBooking) return null;
+    const swap = {
+      id: newId(), fromBookingId, toBookingId, fromEmployeeId: fromBooking.employeeId, toEmployeeId: toBooking.employeeId,
+      day: fromBooking.day, status: "pending", requestedAt: new Date().toISOString(), respondedAt: null
+    };
+    cache.swaps.unshift(swap);
+    client.from("swaps").insert({
+      id: swap.id, from_booking_id: fromBookingId, to_booking_id: toBookingId,
+      from_employee_id: swap.fromEmployeeId, to_employee_id: swap.toEmployeeId, day: swap.day,
+      status: "pending", requested_at: swap.requestedAt
+    }).then(({ error }) => { if (error) console.error("createSwapRequest", error); });
+    logActivity(`Swap requested: ${empName(swap.fromEmployeeId)} ⇄ ${empName(swap.toEmployeeId)}`);
+    return swap;
+  }
+
+  function respondToSwap(swapId, accept) {
+    const swap = cache.swaps.find(s => s.id === swapId);
+    if (!swap || swap.status !== "pending") return { ok: false, reasonKey: "swapNotFound" };
+
+    if (!accept) {
+      swap.status = "declined";
+      swap.respondedAt = new Date().toISOString();
+      client.from("swaps").update({ status: "declined", responded_at: swap.respondedAt }).eq("id", swapId).then(({ error }) => { if (error) console.error(error); });
+      logActivity(`Swap declined (${empName(swap.fromEmployeeId)} ⇄ ${empName(swap.toEmployeeId)})`);
+      return { ok: true };
+    }
+
+    const fromBooking = cache.bookings.find(b => b.id === swap.fromBookingId);
+    const toBooking = cache.bookings.find(b => b.id === swap.toBookingId);
+    if (!fromBooking || !toBooking || fromBooking.status !== "confirmed" || toBooking.status !== "confirmed") {
+      return { ok: false, reasonKey: "swapBookingGone" };
+    }
+    const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+    const todayName = DAY_ORDER[new Date().getDay()];
+    if (fromBooking.day === todayName && nowMin >= fromBooking.start) return { ok: false, reasonKey: "swapAlreadyStarted" };
+    if (toBooking.day === todayName && nowMin >= toBooking.start) return { ok: false, reasonKey: "swapAlreadyStarted" };
+
+    // Dry-run validation: temporarily hide the two swapping bookings from
+    // the cache, re-run the real evaluateSlot() rule engine (js/booking.js)
+    // for each side's NEW time, then restore the cache either way.
+    const originalBookings = cache.bookings;
+    cache.bookings = originalBookings.filter(b => b.id !== fromBooking.id && b.id !== toBooking.id);
+    const fromCheck = evaluateSlot(fromBooking.employeeId, toBooking.day, toBooking.start, toBooking.end);
+    const toCheck = evaluateSlot(toBooking.employeeId, fromBooking.day, fromBooking.start, fromBooking.end);
+    cache.bookings = originalBookings;
+    if (fromCheck.status !== "available" || toCheck.status !== "available") {
+      return { ok: false, reasonKey: "swapNoLongerValid" };
+    }
+
+    const tmp = { start: fromBooking.start, end: fromBooking.end, duration: fromBooking.duration, day: fromBooking.day };
+    fromBooking.start = toBooking.start; fromBooking.end = toBooking.end; fromBooking.duration = toBooking.duration; fromBooking.day = toBooking.day;
+    toBooking.start = tmp.start; toBooking.end = tmp.end; toBooking.duration = tmp.duration; toBooking.day = tmp.day;
+
+    client.from("bookings").update({ start_min: fromBooking.start, end_min: fromBooking.end, duration: fromBooking.duration, day: fromBooking.day })
+      .eq("id", fromBooking.id).then(({ error }) => { if (error) console.error(error); });
+    client.from("bookings").update({ start_min: toBooking.start, end_min: toBooking.end, duration: toBooking.duration, day: toBooking.day })
+      .eq("id", toBooking.id).then(({ error }) => { if (error) console.error(error); });
+
+    swap.status = "accepted";
+    swap.respondedAt = new Date().toISOString();
+    client.from("swaps").update({ status: "accepted", responded_at: swap.respondedAt }).eq("id", swapId).then(({ error }) => { if (error) console.error(error); });
+    logActivity(`Swap accepted: ${empName(swap.fromEmployeeId)} ⇄ ${empName(swap.toEmployeeId)}`);
+    return { ok: true };
+  }
+
+  function expireOldSwaps() {
+    const cfg = getConfig();
+    const now = Date.now();
+    cache.swaps.forEach(s => {
+      if (s.status === "pending" && (now - new Date(s.requestedAt).getTime()) > cfg.swapExpirationMinutes * 60000) {
+        s.status = "expired";
+        client.from("swaps").update({ status: "expired" }).eq("id", s.id).then(({ error }) => { if (error) console.error(error); });
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // DEMO DATA RESET — intentionally disabled on the real shared backend.
+  // Wiping this would delete every real employee's real bookings.
+  // ---------------------------------------------------------------
+  function resetAllDemoData() {
+    console.warn("resetAllDemoData is disabled — this is a real shared database now, not demo storage.");
+  }
+
+  init(); // kick off the initial load the moment this script runs
+
+  return {
+    ready: readyPromise, onChange,
+    getBookings, createBooking, cancelBooking, updateBookingStatus,
+    getConfig, updateConfig,
+    getEmployees, updateEmployees,
+    getAttendance, updateAttendance,
+    getNotifications, addNotification, markNotificationRead, markAllNotificationsRead,
+    getActivityLog, logActivity,
+    getSwapRequests, createSwapRequest, respondToSwap,
+    resetAllDemoData
+  };
+})();
