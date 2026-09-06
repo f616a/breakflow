@@ -519,16 +519,15 @@ function confirmBooking() {
     renderSlotGrid();
     return;
   }
-  const booking = dataService.createBooking({
+  // The "booked!" success message (or a "that time was just taken" failure
+  // message) is fired by dataService itself, only once the server has
+  // actually confirmed the write — see services/supabase-data-service.js.
+  // Firing it here instead would risk showing "success" a split second
+  // before a legitimate server-side rejection rolls the booking back.
+  dataService.createBooking({
     day: homeState.day, employeeId: homeState.employeeId,
     start: homeState.selectedSlot.start, end: homeState.selectedSlot.end, duration: homeState.duration
   });
-  const gender = genderOf(homeState.employeeId);
-  NotificationCenter.notify(
-    "✓ " + i18n.t("confirmBreak"),
-    MessageService.getMessage({ event: "bookingConfirmed", locale: i18n.current, gender, employeeId: homeState.employeeId,
-      args: [null, rangeLabel(booking.start, booking.end)] })
-  );
 
   homeState.step = 0;
   homeState.selectedSlot = null;
