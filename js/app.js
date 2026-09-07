@@ -330,6 +330,7 @@ function respondSwap(swapId, accept) {
   if (accept) {
     NotificationCenter.notify(i18n.t("requestSwap"),
       MessageService.getMessage({ event: "swapAccepted", locale: i18n.current, gender: genderOf(homeState.employeeId), employeeId: homeState.employeeId }));
+    NotificationCenter.SoundEffects.cheer();
   } else {
     NotificationCenter.notify(i18n.t("requestSwap"),
       MessageService.getMessage({ event: "swapDeclined", locale: i18n.current, gender: genderOf(homeState.employeeId), employeeId: homeState.employeeId }));
@@ -424,27 +425,64 @@ function renderEmployeeStatusCard() {
 
   card.classList.remove("hidden");
   card.className = "status-card gender-" + emp.gender;
-  el("statusName").innerHTML = `<span class="gender-dot gender-${emp.gender}"></span>${i18n.current === "ar" ? emp.name : emp.nameEn}`;
+  const photoSrc = emp.photoUrl || avatarPlaceholderUrl(emp);
+  el("statusName").innerHTML = `
+    <span class="avatar-row">
+      <img class="avatar-thumb large" src="${photoSrc}" alt="">
+      <span class="gender-dot gender-${emp.gender}"></span>${i18n.current === "ar" ? emp.name : emp.nameEn}
+    </span>`;
   el("statusBalance").textContent = remaining > 0 ? `${remaining} ${i18n.t("remaining")}` : i18n.t("balanceCompleted");
   el("statusFill").style.width = `${Math.min(100, (used / cfg.dailyBreakMinutes) * 100)}%`;
 }
 
+// Shared fallback avatar (initial letter on a color circle) — used
+// anywhere an employee hasn't had a real photo uploaded yet.
+function avatarPlaceholderUrl(emp) {
+  const letter = encodeURIComponent((emp.name || "?").trim()[0] || "?");
+  const bg = emp.gender === "female" ? "F0748A" : "5FA3E0";
+  return `https://ui-avatars.com/api/?name=${letter}&background=${bg}&color=fff&size=64&bold=true`;
+}
+
 function renderDurationButtons() {
   const remaining = remainingMinutes(homeState.employeeId, homeState.day);
-  const b15 = el("btnDur15"), b30 = el("btnDur30");
+  const cfg = dataService.getConfig();
+  const b15 = el("btnDur15"), b30 = el("btnDur30"), bCustom = el("btnDurCustom");
   b15.disabled = remaining < 15;
   b30.disabled = remaining < 30;
+  bCustom.disabled = remaining < cfg.minBreakMinutes;
   b15.classList.toggle("selected", homeState.duration === 15);
   b30.classList.toggle("selected", homeState.duration === 30);
+  bCustom.classList.toggle("selected", homeState.duration !== null && homeState.duration !== 15 && homeState.duration !== 30);
 }
 
 function chooseDuration(duration) {
   homeState.duration = duration;
   homeState.selectedSlot = null;
+  el("customDurationRow").classList.add("hidden");
   renderDurationButtons();
   el("stepTime").classList.remove("hidden");
   el("stepConfirm").classList.add("hidden");
   renderSlotGrid();
+}
+
+// Any duration is allowed as long as it fits the employee's remaining
+// balance and is a multiple of 5 minutes (keeps slot math clean) — the
+// booking engine itself (js/booking.js) never hardcodes 15/30 anywhere.
+function openCustomDuration() {
+  el("customDurationRow").classList.remove("hidden");
+  const remaining = remainingMinutes(homeState.employeeId, homeState.day);
+  el("customDurationInput").max = remaining;
+  el("customDurationInput").focus();
+}
+function applyCustomDuration() {
+  const cfg = dataService.getConfig();
+  const remaining = remainingMinutes(homeState.employeeId, homeState.day);
+  let value = Math.round(Number(el("customDurationInput").value) / 5) * 5;
+  if (!value || value < cfg.minBreakMinutes || value > remaining) {
+    NotificationCenter.showToast(i18n.t("unavailable"), "danger");
+    return;
+  }
+  chooseDuration(value);
 }
 
 function renderSlotGrid() {
@@ -519,16 +557,15 @@ function confirmBooking() {
     renderSlotGrid();
     return;
   }
-  const booking = dataService.createBooking({
+  // The "booked!" success message (or a "that time was just taken" failure
+  // message) is fired by dataService itself, only once the server has
+  // actually confirmed the write — see services/supabase-data-service.js.
+  // Firing it here instead would risk showing "success" a split second
+  // before a legitimate server-side rejection rolls the booking back.
+  dataService.createBooking({
     day: homeState.day, employeeId: homeState.employeeId,
     start: homeState.selectedSlot.start, end: homeState.selectedSlot.end, duration: homeState.duration
   });
-  const gender = genderOf(homeState.employeeId);
-  NotificationCenter.notify(
-    "✓ " + i18n.t("confirmBreak"),
-    MessageService.getMessage({ event: "bookingConfirmed", locale: i18n.current, gender, employeeId: homeState.employeeId,
-      args: [null, rangeLabel(booking.start, booking.end)] })
-  );
 
   homeState.step = 0;
   homeState.selectedSlot = null;
@@ -603,6 +640,8 @@ async function initApp() {
   });
   el("btnDur15").addEventListener("click", () => chooseDuration(15));
   el("btnDur30").addEventListener("click", () => chooseDuration(30));
+  el("btnDurCustom").addEventListener("click", openCustomDuration);
+  el("customDurationApplyBtn").addEventListener("click", applyCustomDuration);
   el("findNextBtn").addEventListener("click", findNext);
   el("bestTimeBtn").addEventListener("click", findBest);
   el("confirmBookingBtn").addEventListener("click", confirmBooking);

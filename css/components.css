@@ -122,7 +122,18 @@
 .field label{ display:block; font-size:12px; font-weight:700; color:var(--text-soft); margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em; }
 .field input, .field select{ width:100%; padding:10px 12px; border-radius:var(--radius-sm); border:1.5px solid var(--border); font-size:13.5px; background:var(--bg); color:var(--text); }
 
+.btn-export{
+  border:none; border-radius:var(--radius-sm); padding:11px 16px; font-weight:700; font-size:13px;
+  cursor:pointer; background:var(--ok-soft); color:var(--ok); width:100%;
+}
+.btn-export:hover{ background:var(--ok); color:#fff; }
+
 #whoAmISelect{
   width:100%; padding:14px 16px; border-radius:var(--radius-md); border:2px solid var(--primary-dark-teal);
   font-size:16px; font-weight:700; background:var(--bg); color:var(--text); cursor:pointer;
 }
+
+.avatar-thumb{ width:36px; height:36px; border-radius:50%; object-fit:cover; flex-shrink:0; border:1.5px solid var(--border); background:var(--bg); }
+.avatar-thumb.large{ width:56px; height:56px; }
+.status-card .top{ gap:10px; }
+.avatar-row{ display:flex; align-items:center; gap:10px; }

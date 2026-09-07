@@ -66,15 +66,59 @@ function renderEmployeeEditor() {
   const list = dataService.getEmployees();
   el("employeeEditorList").innerHTML = list.map((e, i) => `
     <div class="field" style="display:flex;gap:8px;align-items:center;">
+      <img class="avatar-thumb" data-avatar-idx="${i}" src="${e.photoUrl || avatarPlaceholder(e)}" alt="">
       <input type="text" data-idx="${i}" data-field="name" value="${e.name}" style="flex:1;">
       <input type="text" data-idx="${i}" data-field="nameEn" value="${e.nameEn}" style="flex:1;">
       <select data-idx="${i}" data-field="gender" style="width:110px;">
         <option value="male" ${e.gender === "male" ? "selected" : ""}>Male</option>
         <option value="female" ${e.gender === "female" ? "selected" : ""}>Female</option>
       </select>
+      <label class="btn-link btn-secondary" style="cursor:pointer;white-space:nowrap;">
+        📷 Photo
+        <input type="file" accept="image/*" data-photo-idx="${i}" style="display:none;">
+      </label>
     </div>
   `).join("");
+
+  el("employeeEditorList").querySelectorAll("[data-photo-idx]").forEach(input => {
+    input.addEventListener("change", e => uploadEmployeePhoto(Number(input.dataset.photoIdx), e.target.files[0]));
+  });
 }
+
+// A plain-color circle with the employee's initial — shown until a real
+// photo is uploaded, so the UI never has an ugly broken-image icon.
+function avatarPlaceholder(emp) {
+  const letter = encodeURIComponent((emp.name || "?").trim()[0] || "?");
+  const bg = emp.gender === "female" ? "F0748A" : "5FA3E0";
+  return `https://ui-avatars.com/api/?name=${letter}&background=${bg}&color=fff&size=64&bold=true`;
+}
+
+// Uploads directly from the browser to Supabase Storage (bucket "avatars"),
+// then saves the resulting public URL onto the employee record. Requires
+// the one-time bucket + policy setup in supabase-setup.sql.
+async function uploadEmployeePhoto(idx, file) {
+  if (!file) return;
+  const list = dataService.getEmployees().map(e => Object.assign({}, e));
+  const emp = list[idx];
+  if (!emp) return;
+
+  const path = `emp-${emp.id}-${Date.now()}.${(file.name.split(".").pop() || "jpg")}`;
+  NotificationCenter.showToast(i18n.current === "ar" ? "جارٍ رفع الصورة..." : "Uploading photo...");
+
+  const { error: uploadError } = await dataService.uploadAvatar(path, file);
+  if (uploadError) {
+    console.error("uploadAvatar", uploadError);
+    NotificationCenter.showToast(i18n.current === "ar" ? "تعذّر رفع الصورة." : "Photo upload failed.", "danger");
+    return;
+  }
+
+  const publicUrl = dataService.getAvatarPublicUrl(path);
+  list[idx].photoUrl = publicUrl;
+  dataService.updateEmployees(list);
+  NotificationCenter.showToast(i18n.current === "ar" ? "تم رفع الصورة ✅" : "Photo uploaded ✅");
+  renderEmployeeEditor();
+}
+
 function saveEmployeeEditor() {
   const list = dataService.getEmployees().map(e => Object.assign({}, e));
   el("employeeEditorList").querySelectorAll("[data-idx]").forEach(input => {

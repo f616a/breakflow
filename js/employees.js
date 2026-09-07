@@ -23,8 +23,15 @@ const EMPLOYEES = [
   { id: 12, name: "رؤوم",    nameEn: "Ruoom",    gender: "female" }
 ];
 
-/** Look up one employee by id. Returns undefined if not found. */
+/** Look up one employee by id — prefers the live Supabase-synced roster
+ * (so renamed/re-photographed employees show up everywhere immediately),
+ * falling back to this static array only if the data service isn't
+ * ready yet (e.g. the very first paint before dataService.ready resolves). */
 function getEmployeeById(id) {
+  if (typeof dataService !== "undefined" && dataService.getEmployees) {
+    const live = dataService.getEmployees().find(e => e.id === Number(id));
+    if (live) return live;
+  }
   return EMPLOYEES.find(e => e.id === Number(id));
 }
 

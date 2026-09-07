@@ -25,15 +25,16 @@
  *     that table and calls every registered onChange() callback — that's
  *     what makes two different phones see the same data live.
  *
- * KNOWN LIMITATION (documented honestly, not hidden): the optimistic
- * "check then write" pattern has a small race window — if two people
- * tap "Confirm" on the exact same slot within the same second, both
- * could succeed client-side before Realtime catches the conflict. For
- * a 12-person team this is a rare edge case, not a demo-mode issue, but
- * it is not eliminated. A future hardening step would move the final
- * validation into a Postgres function (RPC) so the database itself
- * rejects a second conflicting write — see requirement #119 in the
- * original brief for why this matters at scale.
+ * KNOWN LIMITATION (documented honestly, not hidden): booking CREATION is
+ * now fully race-proof — see create_booking_safe() in supabase-setup.sql,
+ * which re-checks every rule and takes a per-day advisory lock inside a
+ * single Postgres transaction, so two devices booking the same popular
+ * slot at the same instant can never both win. Swap ACCEPTANCE still only
+ * re-validates client-side (against the calling device's cache) before
+ * committing — a much rarer race in practice (it needs two specific
+ * people to both act on the same swap within the same instant), but it
+ * is not yet hardened the same way. A future step would give swaps the
+ * same treatment: a `respond_to_swap_safe()` Postgres function.
  *
  * Notifications and the activity log are currently GLOBAL (shared by
  * everyone), not per-employee — every device sees the same notification
@@ -76,7 +77,7 @@ const SupabaseDataService = (() => {
     fromEmployeeId: r.from_employee_id, toEmployeeId: r.to_employee_id, day: r.day,
     status: r.status, requestedAt: r.requested_at, respondedAt: r.responded_at
   });
-  const employeeFromRow = r => ({ id: r.id, name: r.name, nameEn: r.name_en, gender: r.gender });
+  const employeeFromRow = r => ({ id: r.id, name: r.name, nameEn: r.name_en, gender: r.gender, photoUrl: r.photo_url || "" });
   const notificationFromRow = r => ({ id: r.id, title: r.title, body: r.body, type: r.type, read: r.read, createdAt: r.created_at });
 
   // ---- refresh one slice of the cache from Supabase ----
@@ -174,16 +175,49 @@ const SupabaseDataService = (() => {
   // ---------------------------------------------------------------
   function getBookings() { return cache.bookings; }
 
+  // Optimistic + server-authoritative: the booking appears instantly in the
+  // UI (good for the common case), but the REAL decision is made atomically
+  // inside Postgres via the create_booking_safe() function (see README /
+  // supabase-setup.sql) — it takes a per-day advisory lock so two devices
+  // booking the same popular slot at the same instant can never both win.
+  // If the server rejects it (lost the race, or the slot filled up in the
+  // split second between our check and the write), we roll the optimistic
+  // entry back out and tell the person.
   function createBooking({ day, employeeId, start, end, duration, reason }) {
+    const id = newId();
     const booking = {
-      id: newId(), day, employeeId, start, end, duration, reason: reason || "", status: "confirmed",
+      id, day, employeeId, start, end, duration, reason: reason || "", status: "confirmed",
       bookedAt: new Date().toISOString(), startedAt: null, completedAt: null, cancelledAt: null
     };
-    cache.bookings.push(booking);
-    client.from("bookings").insert({
-      id: booking.id, day, employee_id: employeeId, start_min: start, end_min: end, duration,
-      reason: booking.reason, status: "confirmed", booked_at: booking.bookedAt
-    }).then(({ error }) => { if (error) console.error("createBooking", error); });
+    cache.bookings.push(booking); // instant UI feedback — the slot list updates right away
+
+    client.rpc("create_booking_safe", {
+      p_id: id, p_day: day, p_employee_id: employeeId, p_start: start, p_end: end,
+      p_duration: duration, p_reason: booking.reason
+    }).then(({ data, error }) => {
+      if (error || !data || !data.ok) {
+        if (error) console.error("create_booking_safe", error);
+        cache.bookings = cache.bookings.filter(b => b.id !== id);
+        notifyChange();
+        if (window.NotificationCenter) {
+          NotificationCenter.showToast("That time was just taken — please pick another slot.", "danger");
+        }
+      } else if (window.NotificationCenter && window.MessageService && window.i18n) {
+        // Only tell the person "booked!" once the server has actually
+        // confirmed it — never before, so there's no misleading success
+        // message followed moments later by a silent rollback.
+        const emp = cache.employees.find(e => e.id === employeeId);
+        NotificationCenter.notify(
+          "✓ " + i18n.t("confirmBreak"),
+          MessageService.getMessage({
+            event: "bookingConfirmed", locale: i18n.current, gender: emp ? emp.gender : "neutral",
+            employeeId, args: [null, rangeLabel(start, end)]
+          })
+        );
+        NotificationCenter.SoundEffects.success();
+      }
+    });
+
     logActivity(`${empName(employeeId)} booked ${minutesToLabel(start)}–${minutesToLabel(end)}`);
     return booking;
   }
@@ -230,10 +264,22 @@ const SupabaseDataService = (() => {
   function getEmployees() { return cache.employees; }
   function updateEmployees(list) {
     cache.employees = list;
-    const rows = list.map(e => ({ id: e.id, name: e.name, name_en: e.nameEn, gender: e.gender }));
+    const rows = list.map(e => ({ id: e.id, name: e.name, name_en: e.nameEn, gender: e.gender, photo_url: e.photoUrl || null }));
     client.from("employees").upsert(rows).then(({ error }) => { if (error) console.error("updateEmployees", error); });
     logActivity("Admin updated the employee roster");
     return list;
+  }
+
+  // ---------------------------------------------------------------
+  // AVATARS — direct browser → Supabase Storage upload (bucket "avatars",
+  // created by supabase-setup.sql). No server code involved; the anon
+  // key is allowed to insert/read on that bucket only, per its policies.
+  // ---------------------------------------------------------------
+  function uploadAvatar(path, file) {
+    return client.storage.from("avatars").upload(path, file, { upsert: true });
+  }
+  function getAvatarPublicUrl(path) {
+    return client.storage.from("avatars").getPublicUrl(path).data.publicUrl;
   }
 
   // ---------------------------------------------------------------
@@ -383,7 +429,7 @@ const SupabaseDataService = (() => {
     ready: readyPromise, onChange,
     getBookings, createBooking, cancelBooking, updateBookingStatus,
     getConfig, updateConfig,
-    getEmployees, updateEmployees,
+    getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl,
     getAttendance, updateAttendance,
     getNotifications, addNotification, markNotificationRead, markAllNotificationsRead,
     getActivityLog, logActivity,

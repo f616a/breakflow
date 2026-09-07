@@ -21,6 +21,14 @@ let amalUnlocked = false;
 
 function el(id) { return document.getElementById(id); }
 
+// Shared fallback avatar (initial letter on a color circle) — used
+// anywhere an employee hasn't had a real photo uploaded yet.
+function avatarPlaceholderUrl(emp) {
+  const letter = encodeURIComponent((emp.name || "?").trim()[0] || "?");
+  const bg = emp.gender === "female" ? "F0748A" : "5FA3E0";
+  return `https://ui-avatars.com/api/?name=${letter}&background=${bg}&color=fff&size=64&bold=true`;
+}
+
 async function tryUnlock() {
   const input = el("amalPasswordInput");
   const btn = el("amalUnlockBtn");
@@ -139,19 +147,23 @@ function renderBalanceTable() {
 
   el("balanceTableBody").innerHTML = rows.map(r => `
     <tr>
-      <td><span class="gender-dot gender-${r.emp.gender}"></span>${i18n.current === "ar" ? r.emp.name : r.emp.nameEn}</td>
+      <td style="display:flex;align-items:center;gap:8px;">
+        <img class="avatar-thumb" src="${r.emp.photoUrl || avatarPlaceholderUrl(r.emp)}" alt="">
+        <span class="gender-dot gender-${r.emp.gender}"></span>${i18n.current === "ar" ? r.emp.name : r.emp.nameEn}
+      </td>
       <td>${r.working ? "✓" : "—"}</td>
       <td>${r.used}</td>
       <td>${r.remaining}</td>
       <td>${r.next ? minutesToLabel(r.next.booking.start) : "—"}</td>
       <td>${r.status}</td>
-    </tr>
-  `).join("");
+    </tr>`).join("");
 }
 
 // -----------------------------------------------------------------
 // FULL BREAK LIST (search / filter / sort — requirement #96)
 // -----------------------------------------------------------------
+let lastFilteredBreakRows = []; // kept in sync with the table so "Export CSV" matches exactly what's shown
+
 function renderFullBreakList() {
   const filterEmp = el("filterEmployee").value;
   const filterStatus = el("filterStatus").value;
@@ -168,6 +180,7 @@ function renderFullBreakList() {
     });
   }
   rows.sort((a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day) || a.start - b.start);
+  lastFilteredBreakRows = rows;
 
   el("fullListBody").innerHTML = rows.map(b => {
     const emp = getEmployeeById(b.employeeId);
@@ -181,6 +194,30 @@ function renderFullBreakList() {
       <td>${b.status}</td>
     </tr>`;
   }).join("");
+}
+
+// Exports exactly what's currently shown (respects the active filters/search).
+function exportBreaksCsv() {
+  const header = ["Day", "Employee (AR)", "Employee (EN)", "Gender", "Start", "End", "Duration (min)", "Status", "Reason", "Booked At"];
+  const dataRows = lastFilteredBreakRows.map(b => {
+    const emp = getEmployeeById(b.employeeId);
+    return [
+      b.day, emp ? emp.name : "", emp ? emp.nameEn : "", emp ? emp.gender : "",
+      minutesToLabel(b.start), minutesToLabel(b.end), b.duration, b.status, b.reason || "", b.bookedAt || ""
+    ];
+  });
+  const csv = [header, ...dataRows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }); // BOM so Excel shows Arabic correctly
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `breakflow-breaks-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function populateFilters() {
@@ -293,6 +330,7 @@ async function initAmal() {
   el("filterEmployee").addEventListener("change", renderFullBreakList);
   el("filterStatus").addEventListener("change", renderFullBreakList);
   el("searchEmployee").addEventListener("input", renderFullBreakList);
+  el("exportBreaksCsvBtn").addEventListener("click", exportBreaksCsv);
 
   el("langToggleBtn").addEventListener("click", () => {
     i18n.setLanguage(i18n.current === "ar" ? "en" : "ar");

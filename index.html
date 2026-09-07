@@ -149,6 +149,11 @@
       <div class="duration-row">
         <button class="duration-btn" id="btnDur15">15</button>
         <button class="duration-btn" id="btnDur30">30</button>
+        <button class="duration-btn" id="btnDurCustom">…</button>
+      </div>
+      <div class="hidden" id="customDurationRow" style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+        <input type="number" id="customDurationInput" min="5" step="5" style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);" placeholder="Minutes">
+        <button class="btn btn-primary" id="customDurationApplyBtn" data-i18n="save">Set</button>
       </div>
     </div>
 
