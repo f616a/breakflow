@@ -288,6 +288,65 @@ function renderSwapCenter() {
 }
 
 // -----------------------------------------------------------------
+// COMPENSATION & EMERGENCY MONTHLY REPORT
+// Grouped by REAL calendar month/year (using leave_requests.createdAt and
+// bookings.bookedAt) — not the weekday-only "day" field bookings use for
+// their own scheduling, which is what makes an accurate monthly report
+// possible without a bigger schema change.
+// -----------------------------------------------------------------
+let lastCompensationRows = [];
+
+function currentMonthLabel() {
+  const now = new Date();
+  return now.toLocaleDateString(i18n.current === "ar" ? "ar" : "en-US", { month: "long", year: "numeric" });
+}
+
+function renderCompensationReport() {
+  const titleEl = el("compensationReportTitle");
+  if (titleEl) titleEl.textContent = `Compensation & Emergency — ${currentMonthLabel()}`;
+
+  const now = new Date();
+  const month = now.getMonth(), year = now.getFullYear();
+  const inThisMonth = iso => { const d = new Date(iso); return d.getMonth() === month && d.getFullYear() === year; };
+
+  const employees = dataService.getEmployees();
+  const leaveRequests = dataService.getLeaveRequests();
+  const bookings = dataService.getBookings();
+
+  lastCompensationRows = employees.map(emp => {
+    const myLeaves = leaveRequests.filter(l => l.employeeId === emp.id && inThisMonth(l.createdAt));
+    const compensation = myLeaves.reduce((s, l) => s + l.compensationMinutes, 0);
+    const myEmergencies = bookings.filter(b => b.employeeId === emp.id && b.isEmergency && b.bookedAt && inThisMonth(b.bookedAt));
+    const exceeded = myEmergencies.filter(b => b.exceededCapacity).length;
+    return { emp, leaveCount: myLeaves.length, compensation, emergencyCount: myEmergencies.length, exceeded };
+  });
+
+  el("compensationReportBody").innerHTML = lastCompensationRows.map(r => `
+    <tr>
+      <td><span class="gender-dot gender-${r.emp.gender}"></span>${i18n.current === "ar" ? r.emp.name : r.emp.nameEn}</td>
+      <td>${r.leaveCount}</td>
+      <td>${r.compensation} min</td>
+      <td>${r.emergencyCount}</td>
+      <td>${r.exceeded}</td>
+    </tr>`).join("");
+}
+
+function exportCompensationCsv() {
+  const header = ["Employee (AR)", "Employee (EN)", "Leave Requests", "Compensation Minutes Owed", "Emergency Breaks", "Exceeded Capacity Count"];
+  const rows = lastCompensationRows.map(r => [r.emp.name, r.emp.nameEn, r.leaveCount, r.compensation, r.emergencyCount, r.exceeded]);
+  const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `breakflow-compensation-${new Date().toISOString().slice(0, 7)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// -----------------------------------------------------------------
 // TABS
 // -----------------------------------------------------------------
 function switchTab(tabName) {
@@ -302,6 +361,7 @@ function renderAmalDashboard() {
   populateFilters();
   renderFullBreakList();
   renderSwapCenter();
+  renderCompensationReport();
   renderActivityLog();
   renderFunFact();
   renderFooterCredit();
@@ -331,6 +391,7 @@ async function initAmal() {
   el("filterStatus").addEventListener("change", renderFullBreakList);
   el("searchEmployee").addEventListener("input", renderFullBreakList);
   el("exportBreaksCsvBtn").addEventListener("click", exportBreaksCsv);
+  el("exportCompensationCsvBtn").addEventListener("click", exportCompensationCsv);
 
   el("langToggleBtn").addEventListener("click", () => {
     i18n.setLanguage(i18n.current === "ar" ? "en" : "ar");

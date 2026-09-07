@@ -369,6 +369,15 @@ const MessageService = (() => {
       en: { neutral: n => `Back early — ${n} minutes saved and returned to your balance for later.` }
     },
 
+    // ---- Leave from duty confirmed ----
+    leaveConfirmed: {
+      ar: {
+        male: n => `تم تسجيل استئذانك، وعليك تعويض ${n} دقيقة. بريكات اليوم الباقية اتلغت.`,
+        female: n => `تم تسجيل استئذانك، وعليكِ تعويض ${n} دقيقة. بريكات اليوم الباقية اتلغت.`
+      },
+      en: { neutral: n => `Leave recorded — ${n} minutes of compensation owed. Today's remaining breaks were cancelled.` }
+    },
+
     // ---- Emergency break started ----
     emergencyStarted: {
       ar: {

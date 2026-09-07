@@ -56,7 +56,8 @@ const SupabaseDataService = (() => {
     swaps: [],
     notifications: [],
     activityLog: [],
-    config: {}
+    config: {},
+    leaveRequests: []
   };
 
   const changeListeners = [];
@@ -69,8 +70,8 @@ const SupabaseDataService = (() => {
   // ---- row <-> app-shape mapping ----
   const bookingFromRow = r => ({
     id: r.id, day: r.day, employeeId: r.employee_id, start: r.start_min, end: r.end_min, duration: r.duration,
-    reason: r.reason || "", status: r.status, isEmergency: !!r.is_emergency, bookedAt: r.booked_at, startedAt: r.started_at,
-    completedAt: r.completed_at, cancelledAt: r.cancelled_at
+    reason: r.reason || "", status: r.status, isEmergency: !!r.is_emergency, exceededCapacity: !!r.exceeded_capacity,
+    bookedAt: r.booked_at, startedAt: r.started_at, completedAt: r.completed_at, cancelledAt: r.cancelled_at
   });
   const swapFromRow = r => ({
     id: r.id, fromBookingId: r.from_booking_id, toBookingId: r.to_booking_id,
@@ -79,6 +80,10 @@ const SupabaseDataService = (() => {
   });
   const employeeFromRow = r => ({ id: r.id, name: r.name, nameEn: r.name_en, gender: r.gender, photoUrl: r.photo_url || "" });
   const notificationFromRow = r => ({ id: r.id, title: r.title, body: r.body, type: r.type, read: r.read, createdAt: r.created_at });
+  const leaveRequestFromRow = r => ({
+    id: r.id, employeeId: r.employee_id, day: r.day, compensationMinutes: r.compensation_minutes,
+    reason: r.reason || "", createdAt: r.created_at
+  });
 
   // ---- refresh one slice of the cache from Supabase ----
   async function refreshEmployees() {
@@ -113,6 +118,11 @@ const SupabaseDataService = (() => {
     const { data, error } = await client.from("activity_log").select("*").order("ts", { ascending: false }).limit(200);
     if (error) { console.error("refreshActivityLog", error); return; }
     cache.activityLog = (data || []).map(r => ({ ts: r.ts, action: r.action }));
+  }
+  async function refreshLeaveRequests() {
+    const { data, error } = await client.from("leave_requests").select("*").order("created_at", { ascending: false });
+    if (error) { console.error("refreshLeaveRequests", error); return; }
+    cache.leaveRequests = (data || []).map(leaveRequestFromRow);
   }
   async function refreshConfig() {
     const { data, error } = await client.from("app_config").select("*").eq("id", 1).maybeSingle();
@@ -161,10 +171,12 @@ const SupabaseDataService = (() => {
       async () => { await refreshConfig(); Object.assign(CONFIG, cache.config); notifyChange(); }).subscribe();
     client.channel("public:notifications").on("postgres_changes", { event: "*", schema: "public", table: "notifications" },
       async () => { await refreshNotifications(); notifyChange(); }).subscribe();
+    client.channel("public:leave_requests").on("postgres_changes", { event: "*", schema: "public", table: "leave_requests" },
+      async () => { await refreshLeaveRequests(); notifyChange(); }).subscribe();
   }
 
   async function init() {
-    await Promise.all([refreshEmployees(), refreshAttendance(), refreshConfig(), refreshBookings(), refreshSwaps(), refreshNotifications(), refreshActivityLog()]);
+    await Promise.all([refreshEmployees(), refreshAttendance(), refreshConfig(), refreshBookings(), refreshSwaps(), refreshNotifications(), refreshActivityLog(), refreshLeaveRequests()]);
     await ensureSeeded();
     setupRealtime();
     readyResolve();
@@ -342,6 +354,48 @@ const SupabaseDataService = (() => {
   }
 
   /**
+   * "استئذان من الدوام" — the employee excuses themselves from the rest
+   * of today's shift, starting right now. Cancels every CONFIRMED (not
+   * yet started) booking they have today — an in-progress or already
+   * completed break is left alone, since that already happened. The
+   * compensation owed is simply "how much of today's shift is left from
+   * this moment to shiftEnd" — logged with a real calendar timestamp
+   * (created_at), which is what makes correct monthly totals possible
+   * without needing bookings themselves to carry a real date.
+   */
+  function requestLeave({ employeeId, reason }) {
+    const cfg = getConfig();
+    const day = getTodayName();
+    const now = nowMinutes();
+    const shiftEndMin = timeToMinutes(cfg.shiftEnd);
+    const compensationMinutes = Math.max(0, shiftEndMin - now);
+
+    cache.bookings
+      .filter(b => b.employeeId === employeeId && b.day === day && b.status === "confirmed")
+      .forEach(b => cancelBooking(b.id));
+
+    const id = newId();
+    const leave = { id, employeeId, day, compensationMinutes, reason: reason || "", createdAt: new Date().toISOString() };
+    cache.leaveRequests.unshift(leave);
+    client.from("leave_requests").insert({
+      id, employee_id: employeeId, day, compensation_minutes: compensationMinutes, reason: leave.reason, created_at: leave.createdAt
+    }).then(({ error }) => { if (error) console.error("requestLeave", error); });
+
+    logActivity(`${empName(employeeId)} requested leave for the rest of the day — ${compensationMinutes} min compensation owed`);
+    return { ok: true, compensationMinutes };
+  }
+
+  function getLeaveRequests() { return cache.leaveRequests; }
+
+  /** Total compensation minutes an employee owes within a given month (0-based JS month + year). */
+  function getMonthlyCompensation(employeeId, month, year) {
+    return cache.leaveRequests
+      .filter(l => l.employeeId === employeeId)
+      .filter(l => { const d = new Date(l.createdAt); return d.getMonth() === month && d.getFullYear() === year; })
+      .reduce((sum, l) => sum + l.compensationMinutes, 0);
+  }
+
+  /**
    * Emergency break — starts immediately, deliberately SKIPS the
    * max-concurrent-breaks check (that's the entire point: a genuine
    * emergency shouldn't wait for a free slot), but still counts fully
@@ -369,17 +423,23 @@ const SupabaseDataService = (() => {
       return { ok: false, reasonKey: "tooCloseToShiftEnd" };
     }
 
+    // Record whether this genuinely exceeded capacity (i.e. whether a
+    // NORMAL booking would have been blocked here) — this is what lets
+    // Amal's monthly report answer "did this actually affect anyone else?"
+    const exceededCapacity = (overlappingCount(day, start, end, employeeId) + 1) > cfg.maxConcurrentBreaks;
+
     const id = newId();
     const nowIso = new Date().toISOString();
     const booking = {
       id, day, employeeId, start, end, duration, reason: reason || "",
-      status: "on-break", isEmergency: true,
+      status: "on-break", isEmergency: true, exceededCapacity,
       bookedAt: nowIso, startedAt: nowIso, completedAt: null, cancelledAt: null
     };
     cache.bookings.push(booking);
     client.from("bookings").insert({
       id, day, employee_id: employeeId, start_min: start, end_min: end, duration,
-      reason: booking.reason, status: "on-break", is_emergency: true, booked_at: nowIso, started_at: nowIso
+      reason: booking.reason, status: "on-break", is_emergency: true, exceeded_capacity: exceededCapacity,
+      booked_at: nowIso, started_at: nowIso
     }).then(({ error }) => { if (error) console.error("createEmergencyBreak", error); });
 
     logActivity(`🚨 ${empName(employeeId)} took an EMERGENCY break ${minutesToLabel(start)}–${minutesToLabel(end)}`);
@@ -569,6 +629,7 @@ const SupabaseDataService = (() => {
   return {
     ready: readyPromise, onChange,
     getBookings, createBooking, cancelBooking, updateBookingStatus, startBreakSmart, endBreakEarly, createEmergencyBreak,
+    requestLeave, getLeaveRequests, getMonthlyCompensation,
     getConfig, updateConfig,
     getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl,
     getAttendance, updateAttendance,

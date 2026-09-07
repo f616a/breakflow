@@ -80,6 +80,11 @@ const TRANSLATIONS = {
     takeEmergencyBreak: "Take Emergency Break Now", emergencyMinutes: "Minutes",
     emergency: "Emergency",
 
+    requestLeave: "Request Leave From Duty", requestLeaveSub: "Cancels today's remaining breaks and logs compensation time owed.",
+    requestLeaveConfirm: "Requesting leave will cancel all your remaining breaks today and log compensation time. Are you sure?",
+    myCompensation: "My Compensation", compensationThisMonth: "Owed this month", noCompensationOwed: "You don't owe any compensation time this month.",
+    hoursShort: "h", minutesShort: "m",
+
     languageSwitch: "AR | EN",
     footerCredit: "Crafted with passion by {name} ✨"
   },
@@ -145,6 +150,11 @@ const TRANSLATIONS = {
     emergencyBreak: "بريك اضطراري", emergencyBreakSub: "بس للحالات الطارئة فعليًا — يتجاوز حد الزحمة المعتاد، بس يُخصم من رصيدك اليومي زي أي بريك عادي.",
     takeEmergencyBreak: "خذ بريك اضطراري الحين", emergencyMinutes: "الدقايق",
     emergency: "اضطراري",
+
+    requestLeave: "استئذان من الدوام", requestLeaveSub: "يلغي بريكات اليوم الباقية ويسجل وقت التعويض المستحق.",
+    requestLeaveConfirm: "الاستئذان بيلغي كل بريكاتك الباقية اليوم ويسجل عليك وقت تعويض. متأكد؟",
+    myCompensation: "التعويض المستحق عليّ", compensationThisMonth: "مستحق هالشهر", noCompensationOwed: "ما عليك أي تعويض هالشهر.",
+    hoursShort: "س", minutesShort: "د",
 
     languageSwitch: "AR | EN",
     footerCredit: "صُنع بشغف بواسطة {name} ✨"

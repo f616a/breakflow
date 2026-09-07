@@ -405,6 +405,45 @@ function respondSwap(swapId, accept) {
   renderAll();
 }
 
+// -----------------------------------------------------------------
+// COMPENSATION + REQUEST LEAVE FROM DUTY
+// -----------------------------------------------------------------
+function formatMinutesAsHM(mins) {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h === 0) return `${m}${i18n.t("minutesShort")}`;
+  if (m === 0) return `${h}${i18n.t("hoursShort")}`;
+  return `${h}${i18n.t("hoursShort")} ${m}${i18n.t("minutesShort")}`;
+}
+
+function renderCompensationSummary() {
+  const container = el("compensationSummary");
+  if (!homeState.employeeId) {
+    container.innerHTML = `<div class="empty-state small">${i18n.t("noBreaksTitle")}</div>`;
+    return;
+  }
+  const now = new Date();
+  const owed = dataService.getMonthlyCompensation(homeState.employeeId, now.getMonth(), now.getFullYear());
+  container.innerHTML = owed === 0
+    ? `<div class="empty-state small">${i18n.t("noCompensationOwed")}</div>`
+    : `<div class="stat-card"><div class="num" style="color:var(--warn);">${formatMinutesAsHM(owed)}</div><div class="label">${i18n.t("compensationThisMonth")}</div></div>`;
+}
+
+function handleRequestLeave() {
+  if (!homeState.employeeId) {
+    NotificationCenter.showToast(i18n.t("pickNameFirst"), "danger");
+    el("whoAmICard").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  if (!confirm(i18n.t("requestLeaveConfirm"))) return;
+  const result = dataService.requestLeave({ employeeId: homeState.employeeId });
+  if (!result.ok) return;
+  NotificationCenter.notify(
+    i18n.t("requestLeave"),
+    MessageService.getMessage({ event: "leaveConfirmed", locale: i18n.current, gender: genderOf(homeState.employeeId), employeeId: homeState.employeeId, args: [result.compensationMinutes] })
+  );
+  renderAll();
+}
+
 function renderSwapRequests() {
   const container = el("swapRequestsList");
   if (!container) return;
@@ -684,6 +723,7 @@ function renderAll() {
   renderTodaysSchedule();
   renderMyBreaks();
   renderSwapRequests();
+  renderCompensationSummary();
   renderFooterCredit();
   NotificationCenter.renderBell();
 }
@@ -714,6 +754,7 @@ async function initApp() {
   el("findNextBtn").addEventListener("click", findNext);
   el("bestTimeBtn").addEventListener("click", findBest);
   el("confirmBookingBtn").addEventListener("click", confirmBooking);
+  el("requestLeaveBtn").addEventListener("click", handleRequestLeave);
   el("closeBookingBtn").addEventListener("click", () => el("bookingPanel").classList.add("hidden"));
 
   el("langToggleBtn").addEventListener("click", () => {

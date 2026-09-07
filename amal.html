@@ -58,6 +58,7 @@
     <button class="tab-btn" data-tab="employees">الموظفين</button>
     <button class="tab-btn" data-tab="breaks">البريكات</button>
     <button class="tab-btn" data-tab="swaps">التبديلات</button>
+    <button class="tab-btn" data-tab="compensation">التعويض والاضطراري</button>
     <button class="tab-btn" data-tab="log">سجل العمليات</button>
   </div>
 
@@ -115,6 +116,23 @@
         <thead><tr><th>Requested</th><th>From</th><th>From Slot</th><th>To</th><th>To Slot</th><th>Status</th></tr></thead>
         <tbody id="swapCenterBody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <div class="tab-panel hidden" data-tab="compensation">
+    <div class="card">
+      <h2 id="compensationReportTitle">Compensation & Emergency — This Month</h2>
+      <p class="sub">Compensation minutes owed and emergency breaks taken, grouped by real calendar month (not weekday).</p>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Employee</th><th>Leave Requests</th><th>Compensation Owed</th>
+            <th>Emergency Breaks</th><th>Of Which Exceeded Capacity</th>
+          </tr>
+        </thead>
+        <tbody id="compensationReportBody"></tbody>
+      </table>
+      <button class="btn-export" id="exportCompensationCsvBtn" style="margin-top:12px;">⬇ Export CSV</button>
     </div>
   </div>
 
