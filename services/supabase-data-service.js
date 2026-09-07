@@ -69,7 +69,7 @@ const SupabaseDataService = (() => {
   // ---- row <-> app-shape mapping ----
   const bookingFromRow = r => ({
     id: r.id, day: r.day, employeeId: r.employee_id, start: r.start_min, end: r.end_min, duration: r.duration,
-    reason: r.reason || "", status: r.status, bookedAt: r.booked_at, startedAt: r.started_at,
+    reason: r.reason || "", status: r.status, isEmergency: !!r.is_emergency, bookedAt: r.booked_at, startedAt: r.started_at,
     completedAt: r.completed_at, cancelledAt: r.cancelled_at
   });
   const swapFromRow = r => ({
@@ -243,6 +243,119 @@ const SupabaseDataService = (() => {
     if (extra && "completedAt" in extra) patch.completed_at = extra.completedAt;
     client.from("bookings").update(patch).eq("id", id).then(({ error }) => { if (error) console.error("updateBookingStatus", error); });
     return booking;
+  }
+
+  /**
+   * "Start Break" with automatic smart extension. If the employee starts
+   * later than their scheduled time (e.g. stuck on a customer call), the
+   * system first tries to push the END time back by the same delay so
+   * they still get their FULL original duration. If that would violate
+   * any rule (most commonly: two other people already booked that later
+   * time slot, hitting max concurrent capacity), the break simply ends at
+   * its original scheduled time instead — the employee just used less
+   * time than planned, and the difference becomes ordinary unused daily
+   * balance they can book again later (no separate tracking needed: it
+   * falls out naturally from shortening this booking's own duration).
+   *
+   * KNOWN LIMITATION: like swap acceptance, this re-validates against
+   * this device's own cache, not inside a single atomic Postgres
+   * transaction — a rare race is possible if two people's extensions
+   * collide in the same instant. See create_booking_safe() for the
+   * pattern a future hardening pass would apply here too.
+   */
+  function startBreakSmart(bookingId) {
+    const booking = cache.bookings.find(b => b.id === bookingId);
+    if (!booking || booking.status !== "confirmed") return { ok: false, reasonKey: "notFound" };
+
+    const now = nowMinutes();
+    const delay = Math.max(0, now - booking.start);
+    const originalEnd = booking.end;
+    const originalDuration = booking.duration;
+    const startedAt = new Date().toISOString();
+
+    if (delay === 0) {
+      booking.status = "on-break";
+      booking.startedAt = startedAt;
+      client.from("bookings").update({ status: "on-break", started_at: startedAt }).eq("id", bookingId)
+        .then(({ error }) => { if (error) console.error("startBreakSmart", error); });
+      return { ok: true, extended: false, shortened: false };
+    }
+
+    const desiredEnd = originalEnd + delay;
+    // Dry-run: hide this booking's OLD time, then check the ACTUAL delayed
+    // window [now, desiredEnd) against every real rule in js/booking.js.
+    const originalBookings = cache.bookings;
+    cache.bookings = originalBookings.filter(b => b.id !== bookingId);
+    const check = evaluateSlot(booking.employeeId, booking.day, now, desiredEnd);
+    cache.bookings = originalBookings;
+
+    let newEnd, newDuration, extended;
+    if (check.status === "available") {
+      newEnd = desiredEnd;
+      newDuration = desiredEnd - now;
+      extended = true;
+    } else {
+      newEnd = originalEnd;
+      newDuration = Math.max(0, originalEnd - now);
+      extended = false;
+    }
+
+    booking.start = now;
+    booking.end = newEnd;
+    booking.duration = newDuration;
+    booking.status = "on-break";
+    booking.startedAt = startedAt;
+
+    client.from("bookings").update({
+      start_min: now, end_min: newEnd, duration: newDuration, status: "on-break", started_at: startedAt
+    }).eq("id", bookingId).then(({ error }) => { if (error) console.error("startBreakSmart", error); });
+
+    return { ok: true, extended, shortened: !extended && newDuration < originalDuration, newEnd, newDuration, originalDuration };
+  }
+
+  /**
+   * Emergency break — starts immediately, deliberately SKIPS the
+   * max-concurrent-breaks check (that's the entire point: a genuine
+   * emergency shouldn't wait for a free slot), but still counts fully
+   * against the employee's daily balance and still respects the daily
+   * cap, the continuous-break limit, and the shift-end buffer, so it
+   * can't be used to bypass those. Tagged `isEmergency` for Amal's
+   * reporting (a fuller monthly emergency-break report is a later phase).
+   */
+  function createEmergencyBreak({ employeeId, duration, reason }) {
+    const cfg = getConfig();
+    const day = getTodayName();
+    const start = nowMinutes();
+    const end = start + duration;
+
+    if (isEmployeeAlreadyBookedAt(employeeId, day, start, end)) {
+      return { ok: false, reasonKey: "alreadyBooked" };
+    }
+    if (duration > remainingMinutes(employeeId, day)) {
+      return { ok: false, reasonKey: "errorInsufficientBalance" };
+    }
+    if (continuousLengthIfAdded(employeeId, day, start, end) > cfg.maxContinuousBreakMinutes) {
+      return { ok: false, reasonKey: "continuousExceeded" };
+    }
+    if (timeToMinutes(cfg.shiftEnd) - end < 15) {
+      return { ok: false, reasonKey: "tooCloseToShiftEnd" };
+    }
+
+    const id = newId();
+    const nowIso = new Date().toISOString();
+    const booking = {
+      id, day, employeeId, start, end, duration, reason: reason || "",
+      status: "on-break", isEmergency: true,
+      bookedAt: nowIso, startedAt: nowIso, completedAt: null, cancelledAt: null
+    };
+    cache.bookings.push(booking);
+    client.from("bookings").insert({
+      id, day, employee_id: employeeId, start_min: start, end_min: end, duration,
+      reason: booking.reason, status: "on-break", is_emergency: true, booked_at: nowIso, started_at: nowIso
+    }).then(({ error }) => { if (error) console.error("createEmergencyBreak", error); });
+
+    logActivity(`🚨 ${empName(employeeId)} took an EMERGENCY break ${minutesToLabel(start)}–${minutesToLabel(end)}`);
+    return { ok: true, booking };
   }
 
   // ---------------------------------------------------------------
@@ -427,7 +540,7 @@ const SupabaseDataService = (() => {
 
   return {
     ready: readyPromise, onChange,
-    getBookings, createBooking, cancelBooking, updateBookingStatus,
+    getBookings, createBooking, cancelBooking, updateBookingStatus, startBreakSmart, createEmergencyBreak,
     getConfig, updateConfig,
     getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl,
     getAttendance, updateAttendance,

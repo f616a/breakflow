@@ -131,6 +131,21 @@
   <!-- Book a Break CTA -->
   <button class="btn-cta" id="bookBreakBtn" data-i18n="bookABreak">BOOK A BREAK</button>
 
+  <!-- Emergency Break -->
+  <div class="card" style="margin-top:14px;border-color:var(--danger);">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div>
+        <h2 style="color:var(--danger);" data-i18n="emergencyBreak">🚨 Emergency Break</h2>
+        <p class="sub" data-i18n="emergencyBreakSub" style="margin:0;">For genuine emergencies only.</p>
+      </div>
+      <button class="btn btn-danger-solid" id="openEmergencyBtn">🚨</button>
+    </div>
+    <div class="hidden" id="emergencyPanel" style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input type="number" id="emergencyDurationInput" min="5" step="5" value="15" style="flex:1;min-width:100px;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);">
+      <button class="btn btn-danger-solid" id="confirmEmergencyBtn" data-i18n="takeEmergencyBreak">Take Emergency Break Now</button>
+    </div>
+  </div>
+
   <!-- Next Up -->
   <div class="card" style="margin-top:18px;">
     <h2 data-i18n="nextUp">Next Up</h2>

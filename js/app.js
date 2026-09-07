@@ -171,6 +171,7 @@ function renderTodaysSchedule() {
         <div class="schedule-time">${rangeLabel(b.start, b.end)}</div>
         <div class="schedule-name"><span class="gender-dot ${gClass}"></span>${name}</div>
         <div class="schedule-badges">
+          ${b.isEmergency ? `<span class="badge-emergency">🚨 ${i18n.t("emergency")}</span>` : ""}
           <span class="badge-dur">${b.duration} MIN</span>
           <span class="badge-status">${i18n.t(statusKey) || b.status}</span>
         </div>
@@ -238,6 +239,7 @@ function renderMyBreaks() {
       <div class="break-row ${gClass}">
         <div class="left">
           <span class="time"><span class="gender-dot ${gClass}"></span>${rangeLabel(b.start, b.end)}</span>
+          ${b.isEmergency ? `<span class="badge-emergency">🚨 ${i18n.t("emergency")}</span>` : ""}
           <span class="badge-dur">${b.duration} MIN</span>
           ${statusHtml}
         </div>
@@ -272,15 +274,63 @@ function handleCancel(bookingId) {
 }
 
 function handleStartBreak(bookingId) {
-  const booking = dataService.updateBookingStatus(bookingId, "on-break", { startedAt: new Date().toISOString() });
+  const result = dataService.startBreakSmart(bookingId);
+  if (!result.ok) return;
+  const booking = dataService.getBookings().find(b => b.id === bookingId);
   if (!booking) return;
   const gender = genderOf(booking.employeeId);
-  const event = booking.duration <= 15 ? "breakStarted15" : "breakStarted30";
-  NotificationCenter.notify(
-    i18n.t("startBreak"),
-    MessageService.getMessage({ event, locale: i18n.current, gender, employeeId: booking.employeeId })
-  );
+
+  if (result.extended) {
+    NotificationCenter.notify(
+      i18n.t("startBreak"),
+      MessageService.getMessage({ event: "breakExtended", locale: i18n.current, gender, employeeId: booking.employeeId, args: [minutesToLabel(result.newEnd)] })
+    );
+  } else if (result.shortened) {
+    NotificationCenter.notify(
+      i18n.t("startBreak"),
+      MessageService.getMessage({ event: "breakShortened", locale: i18n.current, gender, employeeId: booking.employeeId, args: [Math.max(0, result.originalDuration - result.newDuration)] })
+    );
+  } else {
+    const event = booking.duration <= 15 ? "breakStarted15" : "breakStarted30";
+    NotificationCenter.notify(
+      i18n.t("startBreak"),
+      MessageService.getMessage({ event, locale: i18n.current, gender, employeeId: booking.employeeId })
+    );
+  }
   notifiedThisSession.started.add(booking.id);
+  renderAll();
+}
+
+// -----------------------------------------------------------------
+// EMERGENCY BREAK — starts immediately, skips the max-concurrent check
+// only; still counts against the daily balance and every other rule.
+// -----------------------------------------------------------------
+function toggleEmergencyPanel() {
+  el("emergencyPanel").classList.toggle("hidden");
+}
+
+function confirmEmergencyBreak() {
+  if (!homeState.employeeId) {
+    NotificationCenter.showToast(i18n.t("pickNameFirst"), "danger");
+    el("whoAmICard").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  const duration = Math.max(5, Math.round(Number(el("emergencyDurationInput").value) / 5) * 5);
+  const result = dataService.createEmergencyBreak({ employeeId: homeState.employeeId, duration });
+  if (!result.ok) {
+    NotificationCenter.showToast(
+      MessageService.getMessage({ event: result.reasonKey === "errorInsufficientBalance" ? "errorInsufficientBalance" : "errorSlotTaken",
+        locale: i18n.current, gender: genderOf(homeState.employeeId), args: [] }) || i18n.t("unavailable"),
+      "danger"
+    );
+    return;
+  }
+  NotificationCenter.notify(
+    "🚨 " + i18n.t("emergencyBreak"),
+    MessageService.getMessage({ event: "emergencyStarted", locale: i18n.current, gender: genderOf(homeState.employeeId), employeeId: homeState.employeeId })
+  );
+  el("emergencyPanel").classList.add("hidden");
+  notifiedThisSession.started.add(result.booking.id);
   renderAll();
 }
 
@@ -629,6 +679,8 @@ async function initApp() {
   renderAll();
 
   el("bookBreakBtn").addEventListener("click", openBookingFlow);
+  el("openEmergencyBtn").addEventListener("click", toggleEmergencyPanel);
+  el("confirmEmergencyBtn").addEventListener("click", confirmEmergencyBreak);
   el("whoAmISelect").addEventListener("change", e => {
     homeState.employeeId = e.target.value ? Number(e.target.value) : null;
     homeState.duration = null;

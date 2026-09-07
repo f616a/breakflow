@@ -76,6 +76,10 @@ const TRANSLATIONS = {
     waitingApproval: "Waiting for approval", noSwapRequests: "No swap requests.",
     noSwapPartners: "No one else has a swappable break right now.",
 
+    emergencyBreak: "Emergency Break", emergencyBreakSub: "For genuine emergencies only — skips the usual capacity limit, but still counts against your daily balance.",
+    takeEmergencyBreak: "Take Emergency Break Now", emergencyMinutes: "Minutes",
+    emergency: "Emergency",
+
     languageSwitch: "AR | EN",
     footerCredit: "Crafted with passion by {name} ✨"
   },
@@ -137,6 +141,10 @@ const TRANSLATIONS = {
     incomingSwaps: "طلبات وصلتك", sentSwaps: "طلبات أرسلتها", sentTo: "أُرسل لـ",
     waitingApproval: "بانتظار الموافقة", noSwapRequests: "ما فيه طلبات تبديل.",
     noSwapPartners: "ما فيه حد ثاني عنده بريك قابل للتبديل الحين.",
+
+    emergencyBreak: "بريك اضطراري", emergencyBreakSub: "بس للحالات الطارئة فعليًا — يتجاوز حد الزحمة المعتاد، بس يُخصم من رصيدك اليومي زي أي بريك عادي.",
+    takeEmergencyBreak: "خذ بريك اضطراري الحين", emergencyMinutes: "الدقايق",
+    emergency: "اضطراري",
 
     languageSwitch: "AR | EN",
     footerCredit: "صُنع بشغف بواسطة {name} ✨"

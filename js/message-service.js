@@ -340,6 +340,33 @@ const MessageService = (() => {
         neutral: ["ما قدرنا نكمل التبديل — الوقت الجديد ما ينطبق عليه شروط الحجز. جرب طلب تبديل ثاني."]
       },
       en: { neutral: ["The swap couldn't be completed — the new time no longer meets booking rules."] }
+    },
+
+    // ---- Break extended automatically to make up for a late start ----
+    breakExtended: {
+      ar: {
+        male: n => `تأخرت شوي، فمددنا لك بريكك — ترجع الساعة ${n}.`,
+        female: n => `تأخرتِ شوي، فمددنا لك بريكك — ترجعي الساعة ${n}.`
+      },
+      en: { neutral: n => `You started late, so we extended your break — you're back at ${n}.` }
+    },
+
+    // ---- Break kept at its original end time (extension wasn't possible) ----
+    breakShortened: {
+      ar: {
+        male: n => `ما قدرنا نمدد وقتك (الوقت بعده محجوز)، بريكك بينتهي زي ما كان. باقي لك ${n} دقيقة تقدر تحجزها وقت ثاني.`,
+        female: n => `ما قدرنا نمدد وقتك (الوقت بعده محجوز)، بريكك بينتهي زي ما كان. باقي لك ${n} دقيقة تقدرين تحجزينها وقت ثاني.`
+      },
+      en: { neutral: n => `Couldn't extend your break (that time is already booked) — it ends as originally scheduled. You still have ${n} minutes left to book later.` }
+    },
+
+    // ---- Emergency break started ----
+    emergencyStarted: {
+      ar: {
+        male: ["تم تسجيل بريكك الاضطراري، خذ وقتك وارجع لنا 👀", "بريك اضطراري مسجل — لا تطول علينا."],
+        female: ["تم تسجيل بريكك الاضطراري، خذي وقتك وارجعي لنا 👀", "بريك اضطراري مسجل — لا تطولي علينا."]
+      },
+      en: { neutral: ["Emergency break recorded — take what you need."] }
     }
   };
 
