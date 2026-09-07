@@ -43,8 +43,8 @@ const TRANSLATIONS = {
     noBreaksTitle: "No breaks booked yet.", noBreaksSub: "Today's schedule will appear here.",
 
     selectEmployee: "Select Employee", chooseDuration: "Choose Break Duration",
-    whoAmI: "Who are you?", whoAmISub: "Pick your name to see your page: balance, breaks, and times.",
-    pickNameFirst: "Pick your name up top first.",
+    whoAmI: "Who are you?", whoAmISub: "Tap your photo or name to see your page: balance, breaks, and times.",
+    pickNameFirst: "Pick your name up top first.", wrongPin: "Wrong PIN.",
     pickTime: "Pick a Time", confirmBreak: "Confirm Break",
     findNextAvailable: "Find Next Available", bestTime: "Best Time",
     breakBalance: "Break Balance", booked: "Booked", remaining: "Remaining",
@@ -53,6 +53,8 @@ const TRANSLATIONS = {
 
     available: "Available", selected: "Selected", bookedStatus: "Booked",
     unavailable: "Unavailable", popular: "Popular", full: "Full",
+    tooEarlyToBook: "Booking opens at {time}.", tooCloseToOtherBreak: "Too close to another break — leave at least {gap} minutes.",
+    peakTimeFull: "Peak Time is active — only one person can be on break right now.",
 
     myBreaks: "My Breaks", cancelBreak: "Cancel Break", startBreak: "Start Break", imBack: "I'm Back",
     minRemaining: "min remaining", returningSoon: "Returning Soon", breakCompleted: "Break Completed",
@@ -114,8 +116,8 @@ const TRANSLATIONS = {
     noBreaksTitle: "ما فيه بريكات محجوزة بعد.", noBreaksSub: "جدول اليوم بيظهر هنا.",
 
     selectEmployee: "اختر الموظف", chooseDuration: "اختر مدة البريك",
-    whoAmI: "من أنتِ؟", whoAmISub: "اختاري اسمك عشان تشوفي صفحتك: رصيدك، بريكاتك، وأوقاتك.",
-    pickNameFirst: "اختاري اسمك فوق أول شي.",
+    whoAmI: "من أنتِ؟", whoAmISub: "اضغطي صورتك أو اسمك عشان تشوفي صفحتك: رصيدك، بريكاتك، وأوقاتك.",
+    pickNameFirst: "اختاري اسمك فوق أول شي.", wrongPin: "الرقم السري غلط.",
     pickTime: "اختر الوقت", confirmBreak: "تأكيد البريك",
     findNextAvailable: "أقرب وقت متاح", bestTime: "أفضل وقت",
     breakBalance: "رصيد البريك", booked: "محجوز", remaining: "متبقي",
@@ -124,6 +126,8 @@ const TRANSLATIONS = {
 
     available: "متاح", selected: "مختار", bookedStatus: "محجوز",
     unavailable: "غير متاح", popular: "مزدحم", full: "مكتمل",
+    tooEarlyToBook: "الحجز يفتح الساعة {time}.", tooCloseToOtherBreak: "قريب جدًا من بريك ثاني — خلي فاصل {gap} دقايق على الأقل.",
+    peakTimeFull: "وقت الذروة مفعّل الحين — شخص وحد بس يقدر يكون على بريك.",
 
     myBreaks: "بريكاتي", cancelBreak: "إلغاء البريك", startBreak: "ابدأ البريك", imBack: "رجعت",
     minRemaining: "دقيقة متبقية", returningSoon: "قربت ترجع", breakCompleted: "خلص البريك",

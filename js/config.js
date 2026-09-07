@@ -22,6 +22,25 @@ const CONFIG = {
   // always read as CONFIG.maxConcurrentBreaks so Admin can change it.
   maxConcurrentBreaks: 2,
 
+  // Minimum spacing (minutes) required between any two DIFFERENT breaks
+  // that don't overlap — prevents back-to-back scheduling with zero
+  // breathing room, without affecting the max-concurrent overlap rule
+  // (two people genuinely overlapping is still fine up to capacity).
+  minGapMinutes: 5,
+
+  // No one can create a NEW booking before this real clock time, even if
+  // the slot itself is later in the day — stops people booking hours
+  // before their shift even starts. Doesn't affect a slot's own start
+  // time (breakWindowStart), only WHEN the booking action is allowed.
+  bookingOpensAt: "09:00",
+
+  // "Peak Time" — Amal can temporarily force capacity down to 1 for a
+  // chosen window (e.g. a busy hour), then turn it back off. Editable
+  // from مساحة أمل; not meant to be hand-edited here.
+  peakTimeActive: false,
+  peakTimeStart: "12:00",
+  peakTimeEnd: "13:00",
+
   // Swap requests auto-expire after this many minutes if not accepted/declined.
   // (Swap system architecture is ready; the feature itself ships in a later phase.)
   swapExpirationMinutes: 15,

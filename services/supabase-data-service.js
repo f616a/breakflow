@@ -78,7 +78,7 @@ const SupabaseDataService = (() => {
     fromEmployeeId: r.from_employee_id, toEmployeeId: r.to_employee_id, day: r.day,
     status: r.status, requestedAt: r.requested_at, respondedAt: r.responded_at
   });
-  const employeeFromRow = r => ({ id: r.id, name: r.name, nameEn: r.name_en, gender: r.gender, photoUrl: r.photo_url || "" });
+  const employeeFromRow = r => ({ id: r.id, name: r.name, nameEn: r.name_en, gender: r.gender, photoUrl: r.photo_url || "", pin: r.pin || "" });
   const notificationFromRow = r => ({ id: r.id, title: r.title, body: r.body, type: r.type, read: r.read, createdAt: r.created_at });
   const leaveRequestFromRow = r => ({
     id: r.id, employeeId: r.employee_id, day: r.day, compensationMinutes: r.compensation_minutes,
@@ -362,6 +362,17 @@ const SupabaseDataService = (() => {
    * this moment to shiftEnd" — logged with a real calendar timestamp
    * (created_at), which is what makes correct monthly totals possible
    * without needing bookings themselves to carry a real date.
+   *
+   * KNOWN EDGE CASE: if a booking's own createBooking() write is still
+   * in flight (hasn't hit the database yet) at the exact instant it gets
+   * cancelled here, the cancel can land before the row exists and be
+   * lost when the delayed insert finally arrives. In practice this needs
+   * the two actions within the same fraction of a second and is very
+   * unlikely — real bookings are almost always seconds-to-hours old by
+   * the time someone requests leave — but it's a real gap, not a
+   * theoretical one, and the same fix as create_booking_safe() (an
+   * atomic server-side function) would close it properly if it ever
+   * becomes a problem in practice.
    */
   function requestLeave({ employeeId, reason }) {
     const cfg = getConfig();
@@ -465,7 +476,7 @@ const SupabaseDataService = (() => {
   function getEmployees() { return cache.employees; }
   function updateEmployees(list) {
     cache.employees = list;
-    const rows = list.map(e => ({ id: e.id, name: e.name, name_en: e.nameEn, gender: e.gender, photo_url: e.photoUrl || null }));
+    const rows = list.map(e => ({ id: e.id, name: e.name, name_en: e.nameEn, gender: e.gender, photo_url: e.photoUrl || null, pin: e.pin || null }));
     client.from("employees").upsert(rows).then(({ error }) => { if (error) console.error("updateEmployees", error); });
     logActivity("Admin updated the employee roster");
     return list;

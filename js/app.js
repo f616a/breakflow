@@ -514,11 +514,73 @@ function openBookingFlow() {
   el("bookingPanel").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function renderWhoAmISelect() {
-  const select = el("whoAmISelect");
+function renderWhoAmIGrid() {
+  const grid = el("whoAmIGrid");
   const options = dataService.getEmployees();
-  select.innerHTML = `<option value="">${i18n.t("selectEmployee")}…</option>` +
-    options.map(e => `<option value="${e.id}" ${e.id === homeState.employeeId ? "selected" : ""}>${i18n.current === "ar" ? e.name : e.nameEn}</option>`).join("");
+  grid.innerHTML = options.map(e => {
+    const name = i18n.current === "ar" ? e.name : e.nameEn;
+    const photo = e.photoUrl || avatarPlaceholderUrl(e);
+    const active = e.id === homeState.employeeId ? "active" : "";
+    return `
+      <button class="who-am-i-card ${active}" data-pick="${e.id}" type="button">
+        <img src="${photo}" alt="">
+        <span class="name">${name}${e.pin ? ` <span class="lock-icon">🔒</span>` : ""}</span>
+      </button>`;
+  }).join("");
+  grid.querySelectorAll("[data-pick]").forEach(btn => {
+    btn.addEventListener("click", () => handleWhoAmIPick(Number(btn.dataset.pick)));
+  });
+}
+
+// Clicking a photo either selects them right away (no PIN set) or opens
+// the inline PIN prompt first. A correct PIN — or the ABSENCE of one — is
+// what's needed to switch into someone's personal page; see the file-top
+// disclosure about this being a soft deterrent, not real server security.
+let pendingPinEmployeeId = null;
+
+function handleWhoAmIPick(employeeId) {
+  const emp = getEmployeeById(employeeId);
+  if (!emp) return;
+  if (!emp.pin) {
+    selectEmployee(employeeId);
+    return;
+  }
+  pendingPinEmployeeId = employeeId;
+  el("pinPromptName").textContent = i18n.current === "ar" ? emp.name : emp.nameEn;
+  el("pinPromptInput").value = "";
+  el("pinPromptError").textContent = "";
+  el("pinPromptPanel").classList.remove("hidden");
+  el("pinPromptInput").focus();
+}
+
+function submitPinPrompt() {
+  const emp = getEmployeeById(pendingPinEmployeeId);
+  if (!emp) return;
+  if (el("pinPromptInput").value === emp.pin) {
+    el("pinPromptPanel").classList.add("hidden");
+    selectEmployee(pendingPinEmployeeId);
+    pendingPinEmployeeId = null;
+  } else {
+    el("pinPromptError").textContent = i18n.t("wrongPin");
+    el("pinPromptInput").value = "";
+    el("pinPromptInput").focus();
+  }
+}
+
+function cancelPinPrompt() {
+  pendingPinEmployeeId = null;
+  el("pinPromptPanel").classList.add("hidden");
+}
+
+function selectEmployee(employeeId) {
+  homeState.employeeId = employeeId;
+  homeState.duration = null;
+  homeState.selectedSlot = null;
+  homeState.step = 0;
+  el("bookingPanel").classList.add("hidden");
+  setStoredEmployeeId(employeeId);
+  applyEmployeeTheme(employeeId);
+  renderAll();
 }
 
 function renderEmployeeStatusCard() {
@@ -615,12 +677,21 @@ function renderSlotGrid() {
       const evalRes = evaluateSlot(homeState.employeeId, homeState.day, start, end);
       const isSelected = homeState.selectedSlot && homeState.selectedSlot.start === start;
       if (evalRes.status !== "available" && !isSelected) {
-        NotificationCenter.showToast(
-          MessageService.getMessage({ event: evalRes.reasonKey === "errorInsufficientBalance" ? "errorInsufficientBalance" : "errorSlotTaken",
-            locale: i18n.current, gender: genderOf(homeState.employeeId), args: evalRes.reasonArgs || [] }) ||
-          i18n.t("unavailable"),
-          "danger"
-        );
+        // A few reasons are specific enough to show their own precise
+        // message; everything else falls back to the generic gendered
+        // "unavailable" fun-message pool, same as before.
+        const specificKeys = { tooEarlyToBook: "time", tooCloseToOtherBreak: "gap", peakTimeFull: null };
+        let msg;
+        if (evalRes.reasonKey in specificKeys) {
+          const varName = specificKeys[evalRes.reasonKey];
+          msg = i18n.t(evalRes.reasonKey, varName ? { [varName]: (evalRes.reasonArgs || [])[0] } : undefined);
+        } else {
+          msg = MessageService.getMessage({
+            event: evalRes.reasonKey === "errorInsufficientBalance" ? "errorInsufficientBalance" : "errorSlotTaken",
+            locale: i18n.current, gender: genderOf(homeState.employeeId), args: evalRes.reasonArgs || []
+          });
+        }
+        NotificationCenter.showToast(msg || i18n.t("unavailable"), "danger");
         return;
       }
       homeState.selectedSlot = { start, end };
@@ -716,7 +787,7 @@ function renderFooterCredit() {
 function renderAll() {
   renderGreeting();
   renderTopBarAndHero();
-  renderWhoAmISelect();
+  renderWhoAmIGrid();
   renderEmployeeStatusCard();
   renderWhosOnBreak();
   renderNextUp();
@@ -733,20 +804,15 @@ async function initApp() {
   applyTheme(getStoredTheme());
   await dataService.ready; // wait for the initial Supabase load before first render
   if (dataService.onChange) dataService.onChange(renderAll); // live updates from other devices
+  if (homeState.employeeId) applyEmployeeTheme(homeState.employeeId); // restore custom theme on reload
   renderAll();
 
   el("bookBreakBtn").addEventListener("click", openBookingFlow);
   el("openEmergencyBtn").addEventListener("click", toggleEmergencyPanel);
   el("confirmEmergencyBtn").addEventListener("click", confirmEmergencyBreak);
-  el("whoAmISelect").addEventListener("change", e => {
-    homeState.employeeId = e.target.value ? Number(e.target.value) : null;
-    homeState.duration = null;
-    homeState.selectedSlot = null;
-    homeState.step = 0;
-    el("bookingPanel").classList.add("hidden");
-    if (homeState.employeeId) setStoredEmployeeId(homeState.employeeId);
-    renderAll();
-  });
+  el("pinPromptSubmitBtn").addEventListener("click", submitPinPrompt);
+  el("pinPromptCancelBtn").addEventListener("click", cancelPinPrompt);
+  el("pinPromptInput").addEventListener("keydown", e => { if (e.key === "Enter") submitPinPrompt(); });
   el("btnDur15").addEventListener("click", () => chooseDuration(15));
   el("btnDur30").addEventListener("click", () => chooseDuration(30));
   el("btnDurCustom").addEventListener("click", openCustomDuration);

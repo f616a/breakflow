@@ -133,6 +133,7 @@
   cursor:pointer; background:var(--danger); color:#fff;
 }
 .btn-danger-solid:hover{ opacity:.9; }
+.btn-danger-solid.active-peak{ background:var(--ok); }
 .badge-emergency{
   font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:999px; background:var(--danger-soft); color:var(--danger);
 }
@@ -141,6 +142,17 @@
   width:100%; padding:14px 16px; border-radius:var(--radius-md); border:2px solid var(--primary-dark-teal);
   font-size:16px; font-weight:700; background:var(--bg); color:var(--text); cursor:pointer;
 }
+
+.who-am-i-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(76px,1fr)); gap:12px; }
+.who-am-i-card{
+  display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; padding:8px 4px;
+  border-radius:var(--radius-md); border:2px solid transparent; background:none;
+}
+.who-am-i-card:hover{ background:var(--bg); }
+.who-am-i-card.active{ border-color:var(--primary-dark-teal); background:var(--bg); }
+.who-am-i-card img{ width:56px; height:56px; border-radius:50%; object-fit:cover; border:2px solid var(--border); }
+.who-am-i-card .name{ font-size:11.5px; font-weight:700; text-align:center; line-height:1.2; }
+.who-am-i-card .lock-icon{ font-size:10px; }
 
 .avatar-thumb{ width:36px; height:36px; border-radius:50%; object-fit:cover; flex-shrink:0; border:1.5px solid var(--border); background:var(--bg); }
 .avatar-thumb.large{ width:56px; height:56px; }

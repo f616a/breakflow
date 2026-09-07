@@ -25,12 +25,33 @@
   <!-- Who am I — always visible, picks the personal page for this device -->
   <div class="card" id="whoAmICard">
     <h2 data-i18n="whoAmI">من أنتِ؟</h2>
-    <p class="sub" data-i18n="whoAmISub">اختاري اسمك عشان تشوفي صفحتك: رصيدك، بريكاتك، وأوقاتك.</p>
-    <select id="whoAmISelect"></select>
+    <p class="sub" data-i18n="whoAmISub">اضغطي صورتك أو اسمك عشان تشوفي صفحتك: رصيدك، بريكاتك، وأوقاتك.</p>
+    <div class="who-am-i-grid" id="whoAmIGrid"></div>
+
+    <div class="hidden" id="pinPromptPanel" style="margin-top:14px;padding:14px;border-radius:var(--radius-md);background:var(--bg);border:1.5px solid var(--border);">
+      <div style="font-weight:700;font-size:13.5px;margin-bottom:8px;" id="pinPromptName"></div>
+      <div style="display:flex;gap:8px;">
+        <input type="password" id="pinPromptInput" inputmode="numeric" placeholder="••••" style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);font-size:16px;letter-spacing:4px;text-align:center;">
+        <button class="btn btn-primary" id="pinPromptSubmitBtn" data-i18n="unlock">Unlock</button>
+        <button class="btn-link btn-secondary" id="pinPromptCancelBtn" data-i18n="cancel">Cancel</button>
+      </div>
+      <div id="pinPromptError" style="color:var(--danger);font-size:12.5px;margin-top:8px;min-height:16px;"></div>
+    </div>
+
     <div class="status-card hidden" id="employeeStatusCard">
       <div class="top"><span id="statusName"></span><span id="statusBalance"></span></div>
       <div class="progress-track"><div class="progress-fill" id="statusFill"></div></div>
     </div>
+  </div>
+
+  <!-- My Breaks — kept high on the page, this is the most personally
+       relevant section right after picking who you are. -->
+  <div class="card" id="myBreaksSection">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 data-i18n="myBreaks">My Breaks</h2>
+      <span id="myBreaksSummary" style="font-size:12.5px;color:var(--text-soft);font-weight:600;"></span>
+    </div>
+    <div id="myBreaksList"></div>
   </div>
 
   <!-- Top bar: date badge + brand -->
@@ -196,15 +217,6 @@
     <div id="scheduleList"></div>
   </div>
 
-  <!-- My Breaks -->
-  <div class="card" id="myBreaksSection">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <h2 data-i18n="myBreaks">My Breaks</h2>
-      <span id="myBreaksSummary" style="font-size:12.5px;color:var(--text-soft);font-weight:600;"></span>
-    </div>
-    <div id="myBreaksList"></div>
-  </div>
-
   <!-- Swap Requests -->
   <div class="card">
     <h2 data-i18n="swapRequests">Swap Requests</h2>
@@ -231,6 +243,7 @@
 
 <script src="js/config.js"></script>
 <script src="js/employees.js"></script>
+<script src="js/employee-themes.js"></script>
 <script src="js/attendance.js"></script>
 <script src="js/translations.js"></script>
 <script src="js/message-service.js"></script>

@@ -99,16 +99,34 @@ function generateSlots(duration) {
  * { status: "available"|"unavailable"|"booked", reasonKey, reasonArgs }
  * reasonKey maps to a message-service pool for user-facing text.
  */
+// Minimum breathing room between two DIFFERENT, non-overlapping bookings
+// (any employees) — overlapping bookings are governed by the concurrency
+// rule instead, not this one.
+function hasInsufficientGap(day, start, end, gapMinutes) {
+  return bookingsForDay(day).some(b => {
+    const overlaps = start < b.end && end > b.start;
+    if (overlaps) return false; // handled by the concurrency rule, not the gap rule
+    const gap = start >= b.end ? (start - b.end) : (b.start - end);
+    return gap >= 0 && gap < gapMinutes;
+  });
+}
+
 function evaluateSlot(employeeId, day, start, end) {
   const cfg = dataService.getConfig();
+  const today = getTodayName();
 
   // NOTE: attendance is no longer a hard block here. Someone can come in
   // for support/overtime on a day they're not normally scheduled, and
   // still needs to be able to book a break. Attendance (isEmployeeWorking)
   // is still used for reporting/stats (Amal's Space, dashboard counts) —
   // it's just not a gate on booking anymore.
-  if (day === getTodayName() && start < nowMinutes()) {
+  if (day === today && start < nowMinutes()) {
     return { status: "unavailable", reasonKey: "timePassed" };
+  }
+  // No booking action at all before this real clock time (today only) —
+  // stops people booking hours before their shift even starts.
+  if (day === today && nowMinutes() < timeToMinutes(cfg.bookingOpensAt)) {
+    return { status: "unavailable", reasonKey: "tooEarlyToBook", reasonArgs: [cfg.bookingOpensAt] };
   }
   if (isEmployeeAlreadyBookedAt(employeeId, day, start, end)) {
     return { status: "booked", reasonKey: "alreadyBooked" };
@@ -125,9 +143,22 @@ function evaluateSlot(employeeId, day, start, end) {
   if (timeToMinutes(cfg.shiftEnd) - end < 15) {
     return { status: "unavailable", reasonKey: "tooCloseToShiftEnd" };
   }
-  if (overlappingCount(day, start, end, employeeId) + 1 > cfg.maxConcurrentBreaks) {
-    return { status: "unavailable", reasonKey: "errorSlotTaken" };
+
+  // Peak Time: Amal can temporarily force capacity down to 1 for a chosen
+  // window. Only applies to slots that actually overlap that window.
+  let capacity = cfg.maxConcurrentBreaks;
+  if (cfg.peakTimeActive) {
+    const peakStart = timeToMinutes(cfg.peakTimeStart), peakEnd = timeToMinutes(cfg.peakTimeEnd);
+    if (start < peakEnd && end > peakStart) capacity = 1;
   }
+  if (overlappingCount(day, start, end, employeeId) + 1 > capacity) {
+    return { status: "unavailable", reasonKey: capacity === 1 ? "peakTimeFull" : "errorSlotTaken" };
+  }
+
+  if (hasInsufficientGap(day, start, end, cfg.minGapMinutes)) {
+    return { status: "unavailable", reasonKey: "tooCloseToOtherBreak", reasonArgs: [cfg.minGapMinutes] };
+  }
+
   return { status: "available" };
 }
 

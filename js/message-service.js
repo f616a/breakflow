@@ -27,6 +27,56 @@
 
 const MessageService = (() => {
 
+  // ---------------------------------------------------------------
+  // PER-EMPLOYEE PERSONALITY OVERRIDES — checked before the standard
+  // pools below, only for the specific (employeeId, event) pairs
+  // defined here. Anything not overridden falls through to the normal
+  // gendered pools exactly as before. Kept intentionally small and
+  // explicit rather than a generic "personality" system, since these
+  // are two specific, deliberately-written requests.
+  // ---------------------------------------------------------------
+  const EMPLOYEE_OVERRIDES = {
+    4: { // وليد / Waleed — Bedouin (Otaibi) dialect flavor, his request
+      greeting: {
+        ar: {
+          male: [
+            "ارحب يالأمير حي عينك 🤠",
+            "واحفييييت راس الطويلة! 🤠",
+            "هلا وغلا يالأمير، ياهلا فيك",
+            "يا مرحب فيك يالغالي، عساك طيب"
+          ]
+        }
+      },
+      breakEndedEarly: {
+        ar: { male: n => `بيض الله وجهك، رجعت بدري ووفرت ${n} دقيقة 🤍` }
+      }
+    },
+    6: { // سماهر / Samaher — warm, professional appreciation (colleague-to-colleague, not romantic)
+      greeting: {
+        ar: {
+          female: [
+            "هلا بسماهر، عمود القسم وأقدم وحدة فينا 🌿",
+            "يا حياك الله يا أشطر وحدة نعرفها، دايم نتعلم منك",
+            "هلا وسهلا سماهر، رايقة وهادية زي العادة ✨",
+            "يا مرحب فيك، احنا محظوظين إنك معنا بالتيم"
+          ]
+        }
+      }
+    },
+    8: { // عائشة / Aisha
+      greeting: {
+        ar: {
+          female: [
+            "حي الله أم رتيل الأسطورة! 👑",
+            "حي الله الأم العظيمة ✨",
+            "هلا بأسطورتنا أم رتيل",
+            "يا مرحب بيك يا أم رتيل الغالية"
+          ]
+        }
+      }
+    }
+  };
+
   const pools = {
     // ---- Employee picked from the dropdown ----
     greeting: {
@@ -416,9 +466,12 @@ const MessageService = (() => {
    * `args` is an array passed through to template functions (e.g. name, range, number).
    */
   function getMessage({ event, locale = "ar", gender = "neutral", employeeId = "global", args = [] }) {
-    const pool = pools[event];
-    if (!pool) return "";
-    const localePool = pool[locale] || pool.en;
+    const overridePool = EMPLOYEE_OVERRIDES[employeeId] && EMPLOYEE_OVERRIDES[employeeId][event];
+    const standardPool = pools[event];
+    if (!overridePool && !standardPool) return "";
+
+    const localePool = (overridePool && overridePool[locale]) || (standardPool && standardPool[locale]) || (standardPool && standardPool.en);
+    if (!localePool) return "";
     let list = localePool[gender] || localePool.neutral || localePool.male || localePool.female;
 
     // nested-by-time-of-day pools (timeGreeting)

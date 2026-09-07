@@ -85,6 +85,25 @@
         <tbody id="balanceTableBody"></tbody>
       </table>
     </div>
+    <div class="card">
+      <h2>🔒 Personal Page PINs</h2>
+      <p class="sub">Set or view each employee's PIN — required to open their own page (leave blank for no PIN).</p>
+      <div id="pinManagerList"></div>
+      <button class="btn btn-primary btn-block" id="savePinsBtn" style="margin-top:12px;">Save PINs</button>
+    </div>
+    <div class="card" style="border-color:var(--danger);">
+      <h2 style="color:var(--danger);">⏱ Peak Time</h2>
+      <p class="sub">Temporarily force capacity down to 1 person for a chosen time window, then turn it back off.</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <label style="display:flex;flex-direction:column;font-size:11px;color:var(--text-soft);">From
+          <input type="time" id="peakStartInput" style="padding:8px;border-radius:8px;border:1.5px solid var(--border);">
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:11px;color:var(--text-soft);">To
+          <input type="time" id="peakEndInput" style="padding:8px;border-radius:8px;border:1.5px solid var(--border);">
+        </label>
+      </div>
+      <button class="btn btn-danger-solid" id="togglePeakTimeBtn" style="width:100%;">Activate Peak Time</button>
+    </div>
   </div>
 
   <div class="tab-panel hidden" data-tab="breaks">

@@ -160,9 +160,61 @@ function renderBalanceTable() {
 }
 
 // -----------------------------------------------------------------
-// FULL BREAK LIST (search / filter / sort — requirement #96)
+// PIN MANAGER — Amal can view and set each employee's personal-page PIN.
+// See the app-wide disclosure: this deters casual misuse, it is not
+// real server-side security given the public anon key architecture.
 // -----------------------------------------------------------------
-let lastFilteredBreakRows = []; // kept in sync with the table so "Export CSV" matches exactly what's shown
+function renderPinManager() {
+  const list = el("pinManagerList");
+  if (!list) return;
+  const employees = dataService.getEmployees();
+  list.innerHTML = employees.map((e, i) => `
+    <div class="field" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <img class="avatar-thumb" src="${e.photoUrl || avatarPlaceholderUrl(e)}" alt="">
+      <span style="flex:1;font-size:13px;font-weight:600;">${i18n.current === "ar" ? e.name : e.nameEn}</span>
+      <input type="text" inputmode="numeric" data-pin-idx="${i}" value="${e.pin || ""}" placeholder="No PIN" style="width:120px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--border);text-align:center;letter-spacing:2px;">
+    </div>`).join("");
+}
+
+function savePins() {
+  const list = dataService.getEmployees().map(e => Object.assign({}, e));
+  el("pinManagerList").querySelectorAll("[data-pin-idx]").forEach(input => {
+    list[Number(input.dataset.pinIdx)].pin = input.value.trim();
+  });
+  dataService.updateEmployees(list);
+  NotificationCenter.showToast("PINs saved.");
+  renderPinManager();
+}
+
+// -----------------------------------------------------------------
+// PEAK TIME — temporarily force capacity to 1 for a chosen window.
+// -----------------------------------------------------------------
+function renderPeakTimeControl() {
+  const cfg = dataService.getConfig();
+  const startInput = el("peakStartInput"), endInput = el("peakEndInput"), btn = el("togglePeakTimeBtn");
+  if (!startInput || !btn) return;
+  if (!startInput.dataset.userEdited) startInput.value = cfg.peakTimeStart || "12:00";
+  if (!endInput.dataset.userEdited) endInput.value = cfg.peakTimeEnd || "13:00";
+  if (cfg.peakTimeActive) {
+    btn.textContent = `Deactivate Peak Time (${cfg.peakTimeStart}–${cfg.peakTimeEnd}, capacity 1)`;
+    btn.classList.add("active-peak");
+  } else {
+    btn.textContent = "Activate Peak Time";
+    btn.classList.remove("active-peak");
+  }
+}
+
+function togglePeakTime() {
+  const cfg = dataService.getConfig();
+  if (cfg.peakTimeActive) {
+    dataService.updateConfig({ peakTimeActive: false });
+  } else {
+    const start = el("peakStartInput").value, end = el("peakEndInput").value;
+    if (!start || !end) { NotificationCenter.showToast("Pick a start and end time first.", "danger"); return; }
+    dataService.updateConfig({ peakTimeActive: true, peakTimeStart: start, peakTimeEnd: end });
+  }
+  renderPeakTimeControl();
+}
 
 function renderFullBreakList() {
   const filterEmp = el("filterEmployee").value;
@@ -358,6 +410,8 @@ function renderAmalDashboard() {
   renderOverviewCards();
   renderWeekGrid();
   renderBalanceTable();
+  renderPinManager();
+  renderPeakTimeControl();
   populateFilters();
   renderFullBreakList();
   renderSwapCenter();
@@ -392,6 +446,10 @@ async function initAmal() {
   el("searchEmployee").addEventListener("input", renderFullBreakList);
   el("exportBreaksCsvBtn").addEventListener("click", exportBreaksCsv);
   el("exportCompensationCsvBtn").addEventListener("click", exportCompensationCsv);
+  el("savePinsBtn").addEventListener("click", savePins);
+  el("togglePeakTimeBtn").addEventListener("click", togglePeakTime);
+  el("peakStartInput").addEventListener("input", e => { e.target.dataset.userEdited = "1"; });
+  el("peakEndInput").addEventListener("input", e => { e.target.dataset.userEdited = "1"; });
 
   el("langToggleBtn").addEventListener("click", () => {
     i18n.setLanguage(i18n.current === "ar" ? "en" : "ar");
