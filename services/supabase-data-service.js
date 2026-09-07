@@ -182,12 +182,7 @@ const SupabaseDataService = (() => {
   // booking the same popular slot at the same instant can never both win.
   // If the server rejects it (lost the race, or the slot filled up in the
   // split second between our check and the write), we roll the optimistic
-<<<<<<< HEAD
   // entry back out and tell the person.
-=======
-  // entry back out and tell the person. Only ONE message (success OR
-  // rejection) is ever shown, and only once the server has actually spoken.
->>>>>>> 41e6f1bb9e6e8ba58f8f215dd61b065d7a548ab1
   function createBooking({ day, employeeId, start, end, duration, reason }) {
     const id = newId();
     const booking = {
@@ -208,12 +203,9 @@ const SupabaseDataService = (() => {
           NotificationCenter.showToast("That time was just taken — please pick another slot.", "danger");
         }
       } else if (window.NotificationCenter && window.MessageService && window.i18n) {
-<<<<<<< HEAD
         // Only tell the person "booked!" once the server has actually
         // confirmed it — never before, so there's no misleading success
         // message followed moments later by a silent rollback.
-=======
->>>>>>> 41e6f1bb9e6e8ba58f8f215dd61b065d7a548ab1
         const emp = cache.employees.find(e => e.id === employeeId);
         NotificationCenter.notify(
           "✓ " + i18n.t("confirmBreak"),
@@ -222,10 +214,7 @@ const SupabaseDataService = (() => {
             employeeId, args: [null, rangeLabel(start, end)]
           })
         );
-<<<<<<< HEAD
         NotificationCenter.SoundEffects.success();
-=======
->>>>>>> 41e6f1bb9e6e8ba58f8f215dd61b065d7a548ab1
       }
     });
 
