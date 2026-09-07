@@ -54,7 +54,7 @@ const TRANSLATIONS = {
     available: "Available", selected: "Selected", bookedStatus: "Booked",
     unavailable: "Unavailable", popular: "Popular", full: "Full",
 
-    myBreaks: "My Breaks", cancelBreak: "Cancel Break", startBreak: "Start Break",
+    myBreaks: "My Breaks", cancelBreak: "Cancel Break", startBreak: "Start Break", imBack: "I'm Back",
     minRemaining: "min remaining", returningSoon: "Returning Soon", breakCompleted: "Break Completed",
 
     statusWorking: "Working", statusScheduled: "Break Scheduled", statusOnBreak: "On Break",
@@ -120,7 +120,7 @@ const TRANSLATIONS = {
     available: "متاح", selected: "مختار", bookedStatus: "محجوز",
     unavailable: "غير متاح", popular: "مزدحم", full: "مكتمل",
 
-    myBreaks: "بريكاتي", cancelBreak: "إلغاء البريك", startBreak: "ابدأ البريك",
+    myBreaks: "بريكاتي", cancelBreak: "إلغاء البريك", startBreak: "ابدأ البريك", imBack: "رجعت",
     minRemaining: "دقيقة متبقية", returningSoon: "قربت ترجع", breakCompleted: "خلص البريك",
 
     statusWorking: "شغال", statusScheduled: "بريك مجدول", statusOnBreak: "على بريك",

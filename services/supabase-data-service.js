@@ -314,6 +314,34 @@ const SupabaseDataService = (() => {
   }
 
   /**
+   * "I'm Back" — lets someone on break end it EARLY, voluntarily, before
+   * the scheduled end time (mirror image of startBreakSmart's late-start
+   * handling). The booking shrinks to the time actually used; the unused
+   * remainder is automatically free again in their daily balance — no
+   * separate tracking needed, since usedMinutes() just sums durations.
+   */
+  function endBreakEarly(bookingId) {
+    const booking = cache.bookings.find(b => b.id === bookingId);
+    if (!booking || booking.status !== "on-break") return null;
+
+    const now = nowMinutes();
+    const actualEnd = Math.min(now, booking.end); // never extends it — only ever shortens or leaves as-is
+    const savedMinutes = Math.max(0, booking.end - actualEnd);
+    const completedAt = new Date().toISOString();
+
+    booking.end = actualEnd;
+    booking.duration = Math.max(0, actualEnd - booking.start);
+    booking.status = "completed";
+    booking.completedAt = completedAt;
+
+    client.from("bookings").update({
+      end_min: actualEnd, duration: booking.duration, status: "completed", completed_at: completedAt
+    }).eq("id", bookingId).then(({ error }) => { if (error) console.error("endBreakEarly", error); });
+
+    return { ok: true, booking, savedMinutes };
+  }
+
+  /**
    * Emergency break — starts immediately, deliberately SKIPS the
    * max-concurrent-breaks check (that's the entire point: a genuine
    * emergency shouldn't wait for a free slot), but still counts fully
@@ -540,7 +568,7 @@ const SupabaseDataService = (() => {
 
   return {
     ready: readyPromise, onChange,
-    getBookings, createBooking, cancelBooking, updateBookingStatus, startBreakSmart, createEmergencyBreak,
+    getBookings, createBooking, cancelBooking, updateBookingStatus, startBreakSmart, endBreakEarly, createEmergencyBreak,
     getConfig, updateConfig,
     getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl,
     getAttendance, updateAttendance,

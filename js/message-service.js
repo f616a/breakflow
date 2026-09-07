@@ -360,6 +360,15 @@ const MessageService = (() => {
       en: { neutral: n => `Couldn't extend your break (that time is already booked) — it ends as originally scheduled. You still have ${n} minutes left to book later.` }
     },
 
+    // ---- Voluntary early return — "I'm Back" before scheduled end time ----
+    breakEndedEarly: {
+      ar: {
+        male: n => `رجعت بدري 👌 وفرت ${n} دقيقة، رجعت لرصيدك تقدر تحجزها وقت ثاني.`,
+        female: n => `رجعتي بدري 👌 وفرتي ${n} دقيقة، رجعت لرصيدك تقدرين تحجزينها وقت ثاني.`
+      },
+      en: { neutral: n => `Back early — ${n} minutes saved and returned to your balance for later.` }
+    },
+
     // ---- Emergency break started ----
     emergencyStarted: {
       ar: {

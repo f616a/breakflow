@@ -210,7 +210,7 @@ function renderMyBreaks() {
     if (b.status === "on-break") {
       const left = Math.max(0, b.end - now);
       statusHtml = `<span class="badge-status badge-live">${left} ${i18n.t("minRemaining")}</span>`;
-      actionHtml = "";
+      actionHtml = `<button class="btn-link btn-primary" data-end-early="${b.id}">✓ ${i18n.t("imBack")}</button>`;
     } else if (b.status === "completed") {
       statusHtml = `<span class="badge-status">${i18n.t("breakCompleted")}</span>`;
       actionHtml = "";
@@ -253,6 +253,9 @@ function renderMyBreaks() {
   });
   container.querySelectorAll("[data-start]").forEach(btn => {
     btn.addEventListener("click", () => handleStartBreak(btn.dataset.start));
+  });
+  container.querySelectorAll("[data-end-early]").forEach(btn => {
+    btn.addEventListener("click", () => handleEndBreakEarly(btn.dataset.endEarly));
   });
   container.querySelectorAll("[data-swap-open]").forEach(btn => {
     btn.addEventListener("click", () => openSwapPicker(btn.dataset.swapOpen));
@@ -298,6 +301,20 @@ function handleStartBreak(bookingId) {
     );
   }
   notifiedThisSession.started.add(booking.id);
+  renderAll();
+}
+
+// "I'm Back" — voluntarily end an on-break booking early. Whatever time
+// wasn't used becomes ordinary free daily balance again automatically.
+function handleEndBreakEarly(bookingId) {
+  const result = dataService.endBreakEarly(bookingId);
+  if (!result || !result.ok) return;
+  const gender = genderOf(result.booking.employeeId);
+  NotificationCenter.notify(
+    i18n.t("imBack"),
+    MessageService.getMessage({ event: "breakEndedEarly", locale: i18n.current, gender, employeeId: result.booking.employeeId, args: [result.savedMinutes] })
+  );
+  notifiedThisSession.completed.add(result.booking.id);
   renderAll();
 }
 
