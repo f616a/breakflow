@@ -81,6 +81,7 @@ const TRANSLATIONS = {
     emergencyBreak: "Emergency Break", emergencyBreakSub: "For genuine emergencies only — skips the usual capacity limit, but still counts against your daily balance.",
     takeEmergencyBreak: "Take Emergency Break Now", emergencyMinutes: "Minutes",
     emergency: "Emergency",
+    wasRescheduledFrom: "was", byManagementPeakTime: "changed by management (Peak Time)",
 
     requestLeave: "Request Leave From Duty", requestLeaveSub: "Cancels today's remaining breaks and logs compensation time owed.",
     requestLeaveConfirm: "Requesting leave will cancel all your remaining breaks today and log compensation time. Are you sure?",
@@ -154,6 +155,7 @@ const TRANSLATIONS = {
     emergencyBreak: "بريك اضطراري", emergencyBreakSub: "بس للحالات الطارئة فعليًا — يتجاوز حد الزحمة المعتاد، بس يُخصم من رصيدك اليومي زي أي بريك عادي.",
     takeEmergencyBreak: "خذ بريك اضطراري الحين", emergencyMinutes: "الدقايق",
     emergency: "اضطراري",
+    wasRescheduledFrom: "كان بوقت", byManagementPeakTime: "تغيّر بسبب تفعيل وقت الذروة من الإدارة",
 
     requestLeave: "استئذان من الدوام", requestLeaveSub: "يلغي بريكات اليوم الباقية ويسجل وقت التعويض المستحق.",
     requestLeaveConfirm: "الاستئذان بيلغي كل بريكاتك الباقية اليوم ويسجل عليك وقت تعويض. متأكد؟",

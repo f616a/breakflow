@@ -165,7 +165,8 @@ function renderTodaysSchedule() {
     const emp = getEmployeeById(b.employeeId);
     const name = emp ? (i18n.current === "ar" ? emp.name : emp.nameEn) : "—";
     const gClass = emp ? `gender-${emp.gender}` : "";
-    const statusKey = "status" + b.status.charAt(0).toUpperCase() + b.status.slice(1).replace("-", "");
+    const STATUS_LABEL_KEYS = { confirmed: "statusScheduled", "on-break": "statusOnBreak", completed: "statusCompleted" };
+    const statusKey = STATUS_LABEL_KEYS[b.status] || "statusScheduled";
     return `
       <div class="schedule-item ${gClass}">
         <div class="schedule-time">${rangeLabel(b.start, b.end)}</div>
@@ -235,6 +236,10 @@ function renderMyBreaks() {
       }
     }
 
+    const rescheduleNote = b.rescheduledFromStart != null
+      ? `<div class="sub" style="margin-top:4px;font-size:11.5px;">(${i18n.t("wasRescheduledFrom")} <span class="no-flip">${rangeLabel(b.rescheduledFromStart, b.rescheduledFromEnd)}</span> — ${i18n.t("byManagementPeakTime")})</div>`
+      : "";
+
     return `
       <div class="break-row ${gClass}">
         <div class="left">
@@ -242,6 +247,7 @@ function renderMyBreaks() {
           ${b.isEmergency ? `<span class="badge-emergency">🚨 ${i18n.t("emergency")}</span>` : ""}
           <span class="badge-dur">${b.duration} MIN</span>
           ${statusHtml}
+          ${rescheduleNote}
         </div>
         <div class="row-actions">${actionHtml}</div>
         ${pickerHtml}

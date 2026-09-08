@@ -202,6 +202,38 @@ function renderPeakTimeControl() {
     btn.textContent = "Activate Peak Time";
     btn.classList.remove("active-peak");
   }
+  renderPeakTimeChangesList();
+}
+
+// Shows every booking today that was rescheduled by the LAST Peak Time
+// activation — reads straight from the data (reason + old/new time),
+// so it's always accurate and doesn't need any separate state tracking.
+function renderPeakTimeChangesList() {
+  const container = el("peakTimeChangesList");
+  if (!container) return;
+  const today = getTodayName();
+  const changed = dataService.getBookings().filter(b =>
+    b.day === today && b.reason === "Peak Time queue" && b.rescheduledFromStart != null
+  ).sort((a, b) => a.start - b.start);
+
+  if (changed.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+  container.innerHTML = `
+    <div class="sub" style="margin-bottom:6px;">Changed by the last Peak Time activation:</div>
+    ${changed.map(b => {
+      const emp = getEmployeeById(b.employeeId);
+      const name = emp ? (i18n.current === "ar" ? emp.name : emp.nameEn) : "?";
+      const statusNote = b.status === "cancelled" ? " (cancelled since)" : "";
+      return `<div class="break-row" style="padding:8px 12px;">
+        <div class="left"><span style="font-weight:600;">${name}</span>:
+          <span class="no-flip">${rangeLabel(b.rescheduledFromStart, b.rescheduledFromEnd)}</span> →
+          <span class="no-flip">${rangeLabel(b.start, b.end)}</span>${statusNote}
+        </div>
+      </div>`;
+    }).join("")}
+  `;
 }
 
 function togglePeakTime() {

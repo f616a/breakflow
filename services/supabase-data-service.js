@@ -71,6 +71,7 @@ const SupabaseDataService = (() => {
   const bookingFromRow = r => ({
     id: r.id, day: r.day, employeeId: r.employee_id, start: r.start_min, end: r.end_min, duration: r.duration,
     reason: r.reason || "", status: r.status, isEmergency: !!r.is_emergency, exceededCapacity: !!r.exceeded_capacity,
+    rescheduledFromStart: r.rescheduled_from_start, rescheduledFromEnd: r.rescheduled_from_end,
     bookedAt: r.booked_at, startedAt: r.started_at, completedAt: r.completed_at, cancelledAt: r.cancelled_at
   });
   const swapFromRow = r => ({
@@ -428,6 +429,11 @@ const SupabaseDataService = (() => {
     const overlapping = cache.bookings.filter(b =>
       b.day === day && b.status === "confirmed" && b.start < peakEnd && b.end > peakStart
     );
+    // Remember each affected employee's ORIGINAL time before we touch anything,
+    // so the new booking can carry "what it used to be" for the employee's page.
+    const originalByEmployee = {};
+    overlapping.forEach(b => { if (!originalByEmployee[b.employeeId]) originalByEmployee[b.employeeId] = b; });
+
     const employeeIds = [...new Set(overlapping.map(b => b.employeeId))];
     for (let i = employeeIds.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -442,17 +448,20 @@ const SupabaseDataService = (() => {
       const start = cursor, end = cursor + QUEUE_DURATION;
       const id = newId();
       const nowIso = new Date().toISOString();
+      const original = originalByEmployee[employeeId];
       const booking = {
         id, day, employeeId, start, end, duration: QUEUE_DURATION, reason: "Peak Time queue",
         status: "confirmed", isEmergency: false, exceededCapacity: false,
+        rescheduledFromStart: original.start, rescheduledFromEnd: original.end,
         bookedAt: nowIso, startedAt: null, completedAt: null, cancelledAt: null
       };
       cache.bookings.push(booking);
       client.from("bookings").insert({
         id, day, employee_id: employeeId, start_min: start, end_min: end, duration: QUEUE_DURATION,
-        reason: booking.reason, status: "confirmed", booked_at: nowIso
+        reason: booking.reason, status: "confirmed", booked_at: nowIso,
+        rescheduled_from_start: original.start, rescheduled_from_end: original.end
       }).then(({ error }) => { if (error) console.error("activatePeakTimeQueue", error); });
-      queue.push({ employeeId, start, end });
+      queue.push({ employeeId, start, end, previousStart: original.start, previousEnd: original.end });
       cursor = end + QUEUE_GAP;
     });
 
