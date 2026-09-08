@@ -208,10 +208,21 @@ function togglePeakTime() {
   const cfg = dataService.getConfig();
   if (cfg.peakTimeActive) {
     dataService.updateConfig({ peakTimeActive: false });
+    NotificationCenter.showToast("Peak Time deactivated — normal capacity restored.");
   } else {
     const start = el("peakStartInput").value, end = el("peakEndInput").value;
     if (!start || !end) { NotificationCenter.showToast("Pick a start and end time first.", "danger"); return; }
-    dataService.updateConfig({ peakTimeActive: true, peakTimeStart: start, peakTimeEnd: end });
+    if (!confirm(`Activating Peak Time will cancel any existing overlapping breaks and re-queue those people one at a time (15 min each, 2 min gaps), in random order. Continue?`)) return;
+    const result = dataService.activatePeakTimeQueue(start, end);
+    if (result.queue.length === 0) {
+      NotificationCenter.showToast("Peak Time activated — no one had an overlapping break to requeue.");
+    } else {
+      const names = result.queue.map(q => {
+        const emp = getEmployeeById(q.employeeId);
+        return `${emp ? emp.name : "?"} (${minutesToLabel(q.start)}–${minutesToLabel(q.end)})`;
+      }).join(", ");
+      NotificationCenter.showToast(`Peak Time activated — queued: ${names}`);
+    }
   }
   renderPeakTimeControl();
 }
@@ -331,9 +342,9 @@ function renderSwapCenter() {
     return `<tr>
       <td>${new Date(s.requestedAt).toLocaleString()}</td>
       <td>${fromEmp ? fromEmp.name : "—"}</td>
-      <td>${fromBooking ? rangeLabel(fromBooking.start, fromBooking.end) : "—"}</td>
+      <td>${fromBooking ? `<span class="no-flip">${rangeLabel(fromBooking.start, fromBooking.end)}</span>` : "—"}</td>
       <td>${toEmp ? toEmp.name : "—"}</td>
-      <td>${toBooking ? rangeLabel(toBooking.start, toBooking.end) : "—"}</td>
+      <td>${toBooking ? `<span class="no-flip">${rangeLabel(toBooking.start, toBooking.end)}</span>` : "—"}</td>
       <td>${s.status}</td>
     </tr>`;
   }).join("");

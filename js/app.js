@@ -230,7 +230,7 @@ function renderMyBreaks() {
           options.map(o => {
             const oEmp = getEmployeeById(o.employeeId);
             const oName = oEmp ? (i18n.current === "ar" ? oEmp.name : oEmp.nameEn) : "?";
-            return `<button class="btn-link btn-secondary" data-swap-with="${o.id}" data-swap-mine="${b.id}" style="text-align:start;">${oName} — ${rangeLabel(o.start, o.end)}</button>`;
+            return `<button class="btn-link btn-secondary" data-swap-with="${o.id}" data-swap-mine="${b.id}" style="text-align:start;">${oName} — <span class="no-flip">${rangeLabel(o.start, o.end)}</span></button>`;
           }).join("") + `</div>`;
       }
     }
@@ -668,7 +668,7 @@ function renderSlotGrid() {
     if (isSelected) cls.push("selected");
     if (evalRes.status !== "available" && !isSelected) cls.push("disabled");
     if (isPopular) cls.push("popular");
-    return `<button class="${cls.join(" ")}" data-start="${slot.start}" data-end="${slot.end}">${rangeLabel(slot.start, slot.end)}</button>`;
+    return `<button class="${cls.join(" ")}" data-start="${slot.start}" data-end="${slot.end}"><span class="no-flip">${rangeLabel(slot.start, slot.end)}</span></button>`;
   }).join("");
 
   grid.querySelectorAll(".slot-pill").forEach(pill => {
@@ -722,7 +722,7 @@ function renderConfirmStep() {
   const emp = getEmployeeById(homeState.employeeId);
   el("confirmSummary").innerHTML = `
     <div><span class="k">${i18n.t("selectEmployee")}</span><span class="v">${i18n.current === "ar" ? emp.name : emp.nameEn}</span></div>
-    <div><span class="k">${i18n.t("pickTime")}</span><span class="v">${rangeLabel(homeState.selectedSlot.start, homeState.selectedSlot.end)}</span></div>
+    <div><span class="k">${i18n.t("pickTime")}</span><span class="v no-flip">${rangeLabel(homeState.selectedSlot.start, homeState.selectedSlot.end)}</span></div>
     <div><span class="k">${i18n.t("chooseDuration")}</span><span class="v">${homeState.duration} MIN</span></div>
   `;
 }

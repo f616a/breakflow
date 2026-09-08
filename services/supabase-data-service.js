@@ -407,6 +407,63 @@ const SupabaseDataService = (() => {
   }
 
   /**
+   * Peak Time activation with an automatic fair queue. Anyone who already
+   * had a confirmed (not-yet-started) break overlapping the chosen window
+   * gets that booking cancelled and replaced with a strict one-at-a-time
+   * turn: 15 minutes each, a 2-minute gap between turns, in a RANDOM
+   * order (so no one is systematically first or last every time). This
+   * deliberately bypasses the normal 5-minute minGap rule and the usual
+   * concurrency check — Amal is explicitly orchestrating this queue by
+   * hand, and the queue is self-consistent (never more than one person
+   * at a time) by construction, so those two rules don't apply here.
+   * Everything else (daily cap, continuous-break limit, shift-end buffer)
+   * is NOT re-validated for simplicity — this is an occasional manual
+   * admin action for a small handful of people, not everyday booking.
+   */
+  function activatePeakTimeQueue(peakStartStr, peakEndStr) {
+    const day = getTodayName();
+    const peakStart = timeToMinutes(peakStartStr), peakEnd = timeToMinutes(peakEndStr);
+    const QUEUE_DURATION = 15, QUEUE_GAP = 2;
+
+    const overlapping = cache.bookings.filter(b =>
+      b.day === day && b.status === "confirmed" && b.start < peakEnd && b.end > peakStart
+    );
+    const employeeIds = [...new Set(overlapping.map(b => b.employeeId))];
+    for (let i = employeeIds.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [employeeIds[i], employeeIds[j]] = [employeeIds[j], employeeIds[i]];
+    }
+
+    overlapping.forEach(b => cancelBooking(b.id));
+
+    let cursor = peakStart;
+    const queue = [];
+    employeeIds.forEach(employeeId => {
+      const start = cursor, end = cursor + QUEUE_DURATION;
+      const id = newId();
+      const nowIso = new Date().toISOString();
+      const booking = {
+        id, day, employeeId, start, end, duration: QUEUE_DURATION, reason: "Peak Time queue",
+        status: "confirmed", isEmergency: false, exceededCapacity: false,
+        bookedAt: nowIso, startedAt: null, completedAt: null, cancelledAt: null
+      };
+      cache.bookings.push(booking);
+      client.from("bookings").insert({
+        id, day, employee_id: employeeId, start_min: start, end_min: end, duration: QUEUE_DURATION,
+        reason: booking.reason, status: "confirmed", booked_at: nowIso
+      }).then(({ error }) => { if (error) console.error("activatePeakTimeQueue", error); });
+      queue.push({ employeeId, start, end });
+      cursor = end + QUEUE_GAP;
+    });
+
+    updateConfig({ peakTimeActive: true, peakTimeStart: peakStartStr, peakTimeEnd: peakEndStr });
+    logActivity(`Peak Time activated (${peakStartStr}–${peakEndStr}) — ${queue.length} people queued, 15 min each, 2 min gaps`);
+    notifyChange();
+
+    return { ok: true, queue };
+  }
+
+  /**
    * Emergency break — starts immediately, deliberately SKIPS the
    * max-concurrent-breaks check (that's the entire point: a genuine
    * emergency shouldn't wait for a free slot), but still counts fully
@@ -640,7 +697,7 @@ const SupabaseDataService = (() => {
   return {
     ready: readyPromise, onChange,
     getBookings, createBooking, cancelBooking, updateBookingStatus, startBreakSmart, endBreakEarly, createEmergencyBreak,
-    requestLeave, getLeaveRequests, getMonthlyCompensation,
+    requestLeave, getLeaveRequests, getMonthlyCompensation, activatePeakTimeQueue,
     getConfig, updateConfig,
     getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl,
     getAttendance, updateAttendance,
