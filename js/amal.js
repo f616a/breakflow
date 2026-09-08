@@ -528,7 +528,6 @@ async function initAmal() {
   el("savePinsBtn").addEventListener("click", savePins);
   el("togglePeakTimeBtn").addEventListener("click", togglePeakTime);
   el("peakStartInput").addEventListener("input", e => { e.target.dataset.userEdited = "1"; });
-  el("peakEndInput").addEventListener("input", e => { e.target.dataset.userEdited = "1"; });
 
   el("langToggleBtn").addEventListener("click", () => {
     i18n.setLanguage(i18n.current === "ar" ? "en" : "ar");
