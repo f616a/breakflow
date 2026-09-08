@@ -191,18 +191,42 @@ function savePins() {
 // -----------------------------------------------------------------
 function renderPeakTimeControl() {
   const cfg = dataService.getConfig();
-  const startInput = el("peakStartInput"), endInput = el("peakEndInput"), btn = el("togglePeakTimeBtn");
+  const startInput = el("peakStartInput"), btn = el("togglePeakTimeBtn");
   if (!startInput || !btn) return;
-  if (!startInput.dataset.userEdited) startInput.value = cfg.peakTimeStart || "12:00";
-  if (!endInput.dataset.userEdited) endInput.value = cfg.peakTimeEnd || "13:00";
+  if (!startInput.dataset.userEdited) startInput.value = cfg.peakTimeStart || minutesToLabel(nowMinutes()).slice(0, 5);
+  el("peakEndNote").textContent = `Queue runs until the break window ends (${cfg.breakWindowEnd}).`;
   if (cfg.peakTimeActive) {
-    btn.textContent = `Deactivate Peak Time (${cfg.peakTimeStart}–${cfg.peakTimeEnd}, capacity 1)`;
+    btn.textContent = `Deactivate Peak Time (queue ends ${cfg.peakTimeEnd})`;
     btn.classList.add("active-peak");
   } else {
-    btn.textContent = "Activate Peak Time";
+    btn.textContent = "Activate Peak Time Queue";
     btn.classList.remove("active-peak");
   }
+  renderPeakEmployeeChecklist();
   renderPeakTimeChangesList();
+}
+
+// One checkbox per employee, with a live "X min left today" hint, so Amal
+// picks exactly who's on duty without needing to remember balances.
+function renderPeakEmployeeChecklist() {
+  const container = el("peakEmployeeChecklist");
+  if (!container) return;
+  const day = getTodayName();
+  const employees = dataService.getEmployees();
+  const previouslyChecked = new Set(
+    Array.from(container.querySelectorAll("input[type=checkbox]:checked")).map(cb => Number(cb.dataset.empId))
+  );
+  container.innerHTML = employees.map(e => {
+    const remaining = remainingMinutes(e.id, day);
+    const checked = previouslyChecked.has(e.id) ? "checked" : "";
+    return `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;">
+        <input type="checkbox" data-emp-id="${e.id}" ${checked}>
+        <img class="avatar-thumb" src="${e.photoUrl || avatarPlaceholderUrl(e)}" alt="" style="width:28px;height:28px;">
+        <span style="flex:1;font-size:13px;">${i18n.current === "ar" ? e.name : e.nameEn}</span>
+        <span class="sub" style="margin:0;">${remaining} min left</span>
+      </label>`;
+  }).join("");
 }
 
 // Shows every booking today that was rescheduled by the LAST Peak Time
@@ -213,7 +237,7 @@ function renderPeakTimeChangesList() {
   if (!container) return;
   const today = getTodayName();
   const changed = dataService.getBookings().filter(b =>
-    b.day === today && b.reason === "Peak Time queue" && b.rescheduledFromStart != null
+    b.day === today && b.reason === "Peak Time queue"
   ).sort((a, b) => a.start - b.start);
 
   if (changed.length === 0) {
@@ -221,15 +245,17 @@ function renderPeakTimeChangesList() {
     return;
   }
   container.innerHTML = `
-    <div class="sub" style="margin-bottom:6px;">Changed by the last Peak Time activation:</div>
+    <div class="sub" style="margin-bottom:6px;">Current Peak Time queue:</div>
     ${changed.map(b => {
       const emp = getEmployeeById(b.employeeId);
       const name = emp ? (i18n.current === "ar" ? emp.name : emp.nameEn) : "?";
       const statusNote = b.status === "cancelled" ? " (cancelled since)" : "";
+      const wasNote = b.rescheduledFromStart != null
+        ? ` <span class="sub" style="margin:0;">(was <span class="no-flip">${rangeLabel(b.rescheduledFromStart, b.rescheduledFromEnd)}</span>)</span>`
+        : "";
       return `<div class="break-row" style="padding:8px 12px;">
         <div class="left"><span style="font-weight:600;">${name}</span>:
-          <span class="no-flip">${rangeLabel(b.rescheduledFromStart, b.rescheduledFromEnd)}</span> →
-          <span class="no-flip">${rangeLabel(b.start, b.end)}</span>${statusNote}
+          <span class="no-flip">${rangeLabel(b.start, b.end)}</span>${wasNote}${statusNote}
         </div>
       </div>`;
     }).join("")}
@@ -242,19 +268,29 @@ function togglePeakTime() {
     dataService.updateConfig({ peakTimeActive: false });
     NotificationCenter.showToast("Peak Time deactivated — normal capacity restored.");
   } else {
-    const start = el("peakStartInput").value, end = el("peakEndInput").value;
-    if (!start || !end) { NotificationCenter.showToast("Pick a start and end time first.", "danger"); return; }
-    if (!confirm(`Activating Peak Time will cancel any existing overlapping breaks and re-queue those people one at a time (15 min each, 2 min gaps), in random order. Continue?`)) return;
-    const result = dataService.activatePeakTimeQueue(start, end);
-    if (result.queue.length === 0) {
-      NotificationCenter.showToast("Peak Time activated — no one had an overlapping break to requeue.");
-    } else {
-      const names = result.queue.map(q => {
+    const start = el("peakStartInput").value;
+    if (!start) { NotificationCenter.showToast("Pick a start time first.", "danger"); return; }
+    const selectedIds = Array.from(el("peakEmployeeChecklist").querySelectorAll("input[type=checkbox]:checked"))
+      .map(cb => Number(cb.dataset.empId));
+    if (selectedIds.length === 0) { NotificationCenter.showToast("Select at least one on-duty employee.", "danger"); return; }
+    if (!confirm(`Queue ${selectedIds.length} employee(s) one at a time, each getting their full remaining balance, starting at ${start}. Any of their existing bookings today will be cancelled first. Continue?`)) return;
+
+    const result = dataService.activatePeakTimeQueueForSelected(selectedIds, start);
+    const parts = [];
+    if (result.queue.length > 0) {
+      parts.push("Queued: " + result.queue.map(q => {
         const emp = getEmployeeById(q.employeeId);
         return `${emp ? emp.name : "?"} (${minutesToLabel(q.start)}–${minutesToLabel(q.end)})`;
-      }).join(", ");
-      NotificationCenter.showToast(`Peak Time activated — queued: ${names}`);
+      }).join(", "));
     }
+    if (result.skipped.length > 0) {
+      parts.push("Skipped: " + result.skipped.map(s => {
+        const emp = getEmployeeById(s.employeeId);
+        const reason = s.reasonKey === "noBalance" ? "no balance left" : "no room before window end";
+        return `${emp ? emp.name : "?"} (${reason})`;
+      }).join(", "));
+    }
+    NotificationCenter.showToast(parts.join(" — ") || "Peak Time activated.");
   }
   renderPeakTimeControl();
 }

@@ -473,6 +473,73 @@ const SupabaseDataService = (() => {
   }
 
   /**
+   * "اختاري المداومين" mode — Amal explicitly picks which employees to
+   * queue (rather than the system auto-detecting who already had a
+   * booking). Each selected employee's ENTIRE remaining daily balance
+   * becomes their turn length (not a fixed 15 min), scheduled back to
+   * back with a 2-minute gap, starting from the chosen time and
+   * continuing until the break window's own end (cfg.breakWindowEnd —
+   * "4:30" by default, but always follows whatever Admin has set).
+   * Anyone already booked today gets that booking cancelled first, so
+   * their "remaining balance" is computed cleanly with no double count.
+   * Employees who have zero balance left, or for whom no time remains
+   * before the cutoff, are skipped and reported back — not silently
+   * dropped — so Amal can see exactly who didn't get queued and why.
+   */
+  function activatePeakTimeQueueForSelected(employeeIds, peakStartStr) {
+    const cfg = getConfig();
+    const day = getTodayName();
+    const cutoffMin = timeToMinutes(cfg.breakWindowEnd);
+    const QUEUE_GAP = 2;
+
+    let cursor = timeToMinutes(peakStartStr);
+    const queue = [];
+    const skipped = [];
+
+    employeeIds.forEach(employeeId => {
+      // Balance checked against the CURRENT state — nothing is cancelled yet,
+      // so someone who's genuinely used their whole day already (unrelated to
+      // this queue) is correctly skipped WITHOUT touching their real booking.
+      const remaining = remainingMinutes(employeeId, day);
+      if (remaining <= 0) { skipped.push({ employeeId, reasonKey: "noBalance" }); return; }
+      const roomLeft = cutoffMin - cursor;
+      if (roomLeft <= 0) { skipped.push({ employeeId, reasonKey: "noRoomLeft" }); return; }
+
+      // Only NOW — since this person is actually about to get a new slot —
+      // cancel whatever confirmed booking(s) they already had today.
+      const existing = cache.bookings.filter(b => b.employeeId === employeeId && b.day === day && b.status === "confirmed");
+      const original = existing[0] || null;
+      existing.forEach(b => cancelBooking(b.id));
+
+      const duration = Math.min(remaining, roomLeft);
+      const start = cursor, end = cursor + duration;
+      const id = newId();
+      const nowIso = new Date().toISOString();
+      const booking = {
+        id, day, employeeId, start, end, duration, reason: "Peak Time queue",
+        status: "confirmed", isEmergency: false, exceededCapacity: false,
+        rescheduledFromStart: original ? original.start : null, rescheduledFromEnd: original ? original.end : null,
+        bookedAt: nowIso, startedAt: null, completedAt: null, cancelledAt: null
+      };
+      cache.bookings.push(booking);
+      client.from("bookings").insert({
+        id, day, employee_id: employeeId, start_min: start, end_min: end, duration,
+        reason: booking.reason, status: "confirmed", booked_at: nowIso,
+        rescheduled_from_start: original ? original.start : null, rescheduled_from_end: original ? original.end : null
+      }).then(({ error }) => { if (error) console.error("activatePeakTimeQueueForSelected", error); });
+
+      queue.push({ employeeId, start, end, duration, previousStart: original ? original.start : null, previousEnd: original ? original.end : null });
+      cursor = end + QUEUE_GAP;
+    });
+
+    updateConfig({ peakTimeActive: true, peakTimeStart: peakStartStr, peakTimeEnd: cfg.breakWindowEnd });
+    logActivity(`Peak Time queue activated from ${peakStartStr} — ${queue.length} people queued by remaining balance, ${skipped.length} skipped`);
+    notifyChange();
+
+    return { ok: true, queue, skipped };
+  }
+
+  /**
    * Emergency break — starts immediately, deliberately SKIPS the
    * max-concurrent-breaks check (that's the entire point: a genuine
    * emergency shouldn't wait for a free slot), but still counts fully
@@ -706,7 +773,7 @@ const SupabaseDataService = (() => {
   return {
     ready: readyPromise, onChange,
     getBookings, createBooking, cancelBooking, updateBookingStatus, startBreakSmart, endBreakEarly, createEmergencyBreak,
-    requestLeave, getLeaveRequests, getMonthlyCompensation, activatePeakTimeQueue,
+    requestLeave, getLeaveRequests, getMonthlyCompensation, activatePeakTimeQueue, activatePeakTimeQueueForSelected,
     getConfig, updateConfig,
     getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl,
     getAttendance, updateAttendance,
