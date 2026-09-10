@@ -4,8 +4,8 @@
  */
 
 .card{
-  background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg);
-  padding:24px; margin-bottom:18px; box-shadow:var(--shadow);
+  background:var(--card); border:var(--card-border-width) var(--card-border-style) var(--border); border-radius:var(--radius-lg);
+  padding:var(--card-padding); margin-bottom:var(--section-gap); box-shadow:var(--shadow); transform:var(--card-transform);
 }
 .card h2{ font-size:15px; font-weight:700; margin-bottom:4px; }
 .card .sub{ font-size:13px; color:var(--text-soft); margin-bottom:16px; }
@@ -21,7 +21,7 @@
 .btn-block{ width:100%; }
 .btn-cta{
   width:100%; padding:18px; font-size:15px; border-radius:var(--radius-md);
-  background:linear-gradient(135deg,var(--secondary-teal),var(--primary-dark-teal)); color:#fff;
+  background:var(--cta-background); color:#fff;
   border:none; font-weight:800; cursor:pointer; box-shadow:var(--shadow);
 }
 .btn-link{ background:none; border:none; font-weight:700; font-size:12.5px; cursor:pointer; padding:5px 10px; border-radius:999px; }
@@ -36,7 +36,7 @@
 .icon-btn:hover{ border-color:var(--secondary-teal); color:var(--secondary-teal); }
 
 .stat-card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px 16px; box-shadow:var(--shadow-soft); }
-.stat-card .num{ font-size:24px; font-weight:800; font-family:'Plus Jakarta Sans',sans-serif; }
+.stat-card .num{ font-size:24px; font-weight:800; font-family:var(--font-heading); }
 .stat-card .label{ font-size:11.5px; color:var(--text-soft); margin-top:4px; font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
 
 /* ---- Person rows (Who's On Break Now / Next Up) ---- */
@@ -157,10 +157,65 @@
 .switch input:checked + .slider::before{ transform:translateX(20px); }
 .switch input:disabled + .slider{ cursor:not-allowed; opacity:.5; }
 
-/* Layout templates — reorders key sections per employee preference.
-   "Modern" (default) uses natural document order (no override needed).
-   "NeoClassic" brings the primary action (Book a Break) to the very top. */
+/* ===================================================================
+   LAYOUT TEMPLATES — each employee picks one for their own page. This
+   overrides the shared variables (variables.css) that most of the
+   app's cards, buttons, slots, and headings already read from, so
+   typography, shape, shadow, and rhythm change together across nearly
+   every visible element — plus a genuine reorder of key sections.
+   =================================================================== */
+
+/* --- Modern (default) — no override class; :root's values ARE this look --- */
+
+/* --- NeoClassic — editorial, refined, sharp-cornered, flat --- */
+.wrap.layout-neoclassic{
+  --font-heading:Georgia,'Times New Roman',serif;
+  --font-body:Georgia,'Times New Roman',serif;
+  --heading-weight:700;
+  --heading-letter-spacing:0.01em;
+  --radius-lg:4px; --radius-md:4px; --radius-sm:3px;
+  --shadow:none; --shadow-soft:none;
+  --card-border-width:1.5px;
+  --card-padding:28px;
+  --section-gap:22px;
+  --cta-background:var(--primary-dark-teal);
+}
 .wrap.layout-neoclassic #bookBreakSection{ order:-1; }
+
+/* --- Bohemian — warm, soft, heavily rounded, relaxed, dashed borders --- */
+.wrap.layout-bohemian{
+  --font-heading:Verdana,'Segoe UI',sans-serif;
+  --font-body:Verdana,'Segoe UI',sans-serif;
+  --heading-weight:800;
+  --heading-letter-spacing:0;
+  --radius-lg:32px; --radius-md:24px; --radius-sm:18px;
+  --shadow:0 10px 26px -8px rgba(199,123,24,.28);
+  --shadow-soft:0 5px 16px -8px rgba(199,123,24,.2);
+  --card-border-width:2px;
+  --card-border-style:dashed;
+  --card-padding:26px;
+  --section-gap:20px;
+  --cta-background:linear-gradient(135deg,var(--warn),var(--gold));
+}
+.wrap.layout-bohemian #myBreaksSection{ order:-2; }
+.wrap.layout-bohemian #whoAmICard{ order:-1; }
+
+/* --- Eclectic — bold, asymmetric corners, monospace headings, punchy --- */
+.wrap.layout-eclectic{
+  --font-heading:'Courier New',monospace;
+  --font-body:'Segoe UI',Tahoma,sans-serif;
+  --heading-weight:800;
+  --heading-letter-spacing:-0.02em;
+  --radius-lg:6px 24px 6px 24px; --radius-md:4px 16px 4px 16px; --radius-sm:4px 12px 4px 12px;
+  --shadow:0 3px 0 var(--primary-dark-teal), 0 6px 16px -8px rgba(30,42,66,.3);
+  --shadow-soft:0 2px 0 var(--border), 0 4px 12px -8px rgba(30,42,66,.2);
+  --card-border-width:2px;
+  --card-padding:22px;
+  --section-gap:20px;
+  --cta-background:linear-gradient(135deg,var(--danger),var(--primary-dark-teal));
+}
+.wrap.layout-eclectic #scheduleSection{ order:-2; }
+.wrap.layout-eclectic #bookBreakSection{ order:-1; }
 .badge-emergency{
   font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:999px; background:var(--danger-soft); color:var(--danger);
 }

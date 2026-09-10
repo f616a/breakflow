@@ -18,7 +18,9 @@
 
 const LAYOUT_PRESETS = {
   modern: { label: "Modern (Default)" },
-  neoclassic: { label: "NeoClassic — Book a Break at the top" }
+  neoclassic: { label: "NeoClassic — refined & editorial" },
+  bohemian: { label: "Bohemian — warm & relaxed" },
+  eclectic: { label: "Eclectic — bold & asymmetric" }
 };
 
 const LAYOUT_CLASS_PREFIX = "layout-";

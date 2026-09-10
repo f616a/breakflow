@@ -30,6 +30,20 @@
   --radius-lg:22px; --radius-md:16px; --radius-sm:12px;
   --shadow:0 1px 2px rgba(30,42,66,.05), 0 12px 28px -14px rgba(30,42,66,.18);
   --shadow-soft:0 1px 2px rgba(30,42,66,.04), 0 6px 16px -10px rgba(30,42,66,.12);
+
+  /* Layout-template variables (overridden per .wrap.layout-<key> — see
+     components.css for the 4 templates). These are the DEFAULT ("modern")
+     values; every rule below reads from these instead of hardcoding. */
+  --font-body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --font-heading:'Plus Jakarta Sans','Inter',sans-serif;
+  --heading-weight:700;
+  --heading-letter-spacing:-0.01em;
+  --card-border-width:1px;
+  --card-border-style:solid;
+  --card-padding:24px;
+  --section-gap:18px;
+  --card-transform:none;
+  --cta-background:linear-gradient(135deg,var(--secondary-teal),var(--primary-dark-teal));
 }
 
 [data-theme="dark"]{
