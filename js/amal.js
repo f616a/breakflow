@@ -60,7 +60,7 @@ function renderOverviewCards() {
   const allBookings = dataService.getBookings(); // includes cancelled, for accurate counts
   const activeThisWeek = allBookings.filter(b => b.status !== "cancelled");
   const totalMinutes = activeThisWeek.reduce((s, b) => s + b.duration, 0);
-  const today = getTodayName();
+  const today = getTodayDate();
   const todays = bookingsForDay(today);
   const onBreakNow = getWhosOnBreakNow(today).length;
   const upcoming = getNextUp(today, 999).length;
@@ -71,7 +71,7 @@ function renderOverviewCards() {
     [activeThisWeek.length, "Total Breaks", "إجمالي البريكات"],
     [totalMinutes, "Total Break Minutes", "إجمالي دقائق البريك"],
     [todays.length, "Today's Breaks", "بريكات اليوم"],
-    [employeesForDay(today).length, "Working Today", "الحاضرين اليوم"],
+    [employeesForDay(getTodayName()).length, "Working Today", "الحاضرين اليوم"],
     [onBreakNow, "On Break Now", "على بريك الآن"],
     [upcoming, "Upcoming Breaks", "بريكات قادمة"],
     [pendingSwaps, "Pending Swaps", "طلبات تبديل"],
@@ -90,13 +90,15 @@ function renderOverviewCards() {
 // WEEKLY CARD GRID (Sunday → Saturday, live counts per weekday)
 // -----------------------------------------------------------------
 function renderWeekGrid() {
-  el("weekGrid").innerHTML = DAY_ORDER.map(day => {
-    const bookings = bookingsForDay(day);
+  el("weekGrid").innerHTML = getCurrentWeekDates().map((date, i) => {
+    const dayName = DAY_ORDER[i];
+    const bookings = bookingsForDay(date);
     const minutes = bookings.reduce((s, b) => s + b.duration, 0);
-    const working = employeesForDay(day).length;
+    const working = employeesForDay(dayName).length;
     return `
-      <div class="week-day-card" data-day="${day}">
-        <div class="day-name">${day}</div>
+      <div class="week-day-card" data-date="${date}" data-day-name="${dayName}">
+        <div class="day-name">${dayName}</div>
+        <div class="day-meta">${date}</div>
         <div class="day-meta">${bookings.length} bookings</div>
         <div class="day-meta">${minutes} min</div>
         <div class="day-meta">${working} working</div>
@@ -104,15 +106,15 @@ function renderWeekGrid() {
   }).join("");
 
   el("weekGrid").querySelectorAll(".week-day-card").forEach(card => {
-    card.addEventListener("click", () => renderDayDetail(card.dataset.day));
+    card.addEventListener("click", () => renderDayDetail(card.dataset.date, card.dataset.dayName));
   });
 }
 
-function renderDayDetail(day) {
-  const rows = getTodaysSchedule(day);
+function renderDayDetail(date, dayName) {
+  const rows = getTodaysSchedule(date);
   const panel = el("dayDetailPanel");
   panel.classList.remove("hidden");
-  el("dayDetailTitle").textContent = day;
+  el("dayDetailTitle").textContent = `${dayName || dateToDayName(date)} — ${date}`;
   el("dayDetailList").innerHTML = rows.length === 0
     ? `<div class="empty-state small">${i18n.t("noBreaksTitle")}</div>`
     : rows.map(b => {
@@ -134,14 +136,15 @@ function renderDayDetail(day) {
 // TODAY COMMAND CENTER + BALANCE TABLE
 // -----------------------------------------------------------------
 function renderBalanceTable() {
-  const today = getTodayName();
+  const todayDate = getTodayDate();
+  const todayName = getTodayName();
   const cfg = dataService.getConfig();
   const rows = dataService.getEmployees().map(emp => {
-    const working = isEmployeeWorking(emp.id, today); // attendance flag — for the "Working" column only
-    const used = usedMinutes(emp.id, today); // real usage counts regardless of attendance (overtime/support bookings)
+    const working = isEmployeeWorking(emp.id, todayName); // attendance flag — for the "Working" column only
+    const used = usedMinutes(emp.id, todayDate); // real usage counts regardless of attendance (overtime/support bookings)
     const remaining = Math.max(0, cfg.dailyBreakMinutes - used);
-    const status = getEmployeeStatus(emp.id, today);
-    const next = getNextUp(today, 999).find(n => n.employee && n.employee.id === emp.id);
+    const status = getEmployeeStatus(emp.id, todayDate);
+    const next = getNextUp(todayDate, 999).find(n => n.employee && n.employee.id === emp.id);
     return { emp, working, used, remaining, status, next };
   });
 
@@ -221,9 +224,9 @@ function renderPeakTimeControl() {
 function renderPeakTimeChangesList() {
   const container = el("peakTimeChangesList");
   if (!container) return;
-  const today = getTodayName();
+  const today = getTodayDate();
   const changed = dataService.getBookings().filter(b =>
-    b.day === today && b.reason === "Peak Time queue"
+    b.date === today && b.reason === "Peak Time queue"
   ).sort((a, b) => a.start - b.start);
 
   if (changed.length === 0) {
@@ -310,13 +313,13 @@ function renderFullBreakList() {
       return emp.name.toLowerCase().includes(search) || emp.nameEn.toLowerCase().includes(search);
     });
   }
-  rows.sort((a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day) || a.start - b.start);
+  rows.sort((a, b) => (a.date || "").localeCompare(b.date || "") || a.start - b.start);
   lastFilteredBreakRows = rows;
 
   el("fullListBody").innerHTML = rows.map(b => {
     const emp = getEmployeeById(b.employeeId);
     return `<tr>
-      <td>${b.day}</td>
+      <td>${b.date || b.day}</td>
       <td>${emp ? (i18n.current === "ar" ? emp.name : emp.nameEn) : "—"}</td>
       <td>${emp ? emp.gender : "—"}</td>
       <td>${minutesToLabel(b.start)}</td>
@@ -329,11 +332,11 @@ function renderFullBreakList() {
 
 // Exports exactly what's currently shown (respects the active filters/search).
 function exportBreaksCsv() {
-  const header = ["Day", "Employee (AR)", "Employee (EN)", "Gender", "Start", "End", "Duration (min)", "Status", "Reason", "Booked At"];
+  const header = ["Date", "Day", "Employee (AR)", "Employee (EN)", "Gender", "Start", "End", "Duration (min)", "Status", "Reason", "Booked At"];
   const dataRows = lastFilteredBreakRows.map(b => {
     const emp = getEmployeeById(b.employeeId);
     return [
-      b.day, emp ? emp.name : "", emp ? emp.nameEn : "", emp ? emp.gender : "",
+      b.date || "", b.day, emp ? emp.name : "", emp ? emp.nameEn : "", emp ? emp.gender : "",
       minutesToLabel(b.start), minutesToLabel(b.end), b.duration, b.status, b.reason || "", b.bookedAt || ""
     ];
   });
@@ -371,7 +374,7 @@ function renderActivityLog() {
 // FUN INSIGHT (real data only, per requirement #47)
 // -----------------------------------------------------------------
 function renderFunFact() {
-  const today = getTodayName();
+  const today = getTodayDate();
   const bookings = bookingsForDay(today);
   const box = el("funFactCard");
   if (bookings.length === 0) {

@@ -24,7 +24,7 @@
 const CURRENT_EMPLOYEE_KEY = "breakflow_current_employee";
 
 const homeState = {
-  day: getTodayName(),
+  day: getTodayDate(), // a REAL calendar date ("YYYY-MM-DD") now, not a weekday name — see js/booking.js
   step: 0, // 0 = not booking, 1..4 = active step
   employeeId: getStoredEmployeeId(),
   duration: null,

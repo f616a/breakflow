@@ -165,14 +165,14 @@ function saveAttendanceGrid() {
 function renderAllBookings() {
   const rows = dataService.getBookings()
     .filter(b => b.status !== "cancelled")
-    .sort((a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day) || a.start - b.start);
+    .sort((a, b) => (a.date || "").localeCompare(b.date || "") || a.start - b.start);
 
   el("allBookingsBody").innerHTML = rows.length === 0
     ? `<tr><td colspan="6" class="empty-state small">No active bookings.</td></tr>`
     : rows.map(b => {
         const emp = getEmployeeById(b.employeeId);
         return `<tr>
-          <td>${b.day}</td>
+          <td>${b.date || b.day}</td>
           <td>${emp ? emp.name : "—"}</td>
           <td>${minutesToLabel(b.start)}</td>
           <td>${minutesToLabel(b.end)}</td>
@@ -272,9 +272,11 @@ async function initAdmin() {
     NotificationCenter.showToast("Demo data reset.");
   });
 
-  // Populate the day select for the admin booking form.
-  el("adminBookDay").innerHTML = DAY_ORDER.map(d => `<option value="${d}">${d}</option>`).join("");
-  el("adminBookDay").value = getTodayName();
+  // Default the admin booking date to today, and don't allow picking the
+  // past — bookings are now tied to a REAL calendar date, not just a
+  // weekday name that would otherwise recur every week forever.
+  el("adminBookDay").min = getTodayDate();
+  el("adminBookDay").value = getTodayDate();
 }
 
 document.addEventListener("DOMContentLoaded", initAdmin);

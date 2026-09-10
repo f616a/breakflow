@@ -27,17 +27,20 @@ function rangeLabel(start, end) {
  * Always resolves "now" against Asia/Riyadh (Mecca time), regardless of
  * what timezone the device itself is set to — a phone with a wrong or
  * unusual timezone setting still gets correct booking-window behavior.
+ * Also returns today's REAL calendar date (YYYY-MM-DD) — this is what
+ * every booking is now actually tied to, instead of just a weekday name
+ * that would otherwise recur forever every week.
  */
 function nowInMecca() {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Riyadh", weekday: "short", hour: "numeric", minute: "numeric", hour12: false
+    timeZone: "Asia/Riyadh", weekday: "short", year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", minute: "numeric", hour12: false
   }).formatToParts(new Date());
   const get = type => parts.find(p => p.type === type).value;
   const weekdayShort = get("weekday"); // "Sun".."Sat"
   const hour = Number(get("hour")) % 24;
   const minute = Number(get("minute"));
   const WEEKDAY_MAP = { Sun: "Sunday", Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday" };
-  return { day: WEEKDAY_MAP[weekdayShort], minutes: hour * 60 + minute };
+  return { day: WEEKDAY_MAP[weekdayShort], minutes: hour * 60 + minute, date: `${get("year")}-${get("month")}-${get("day")}` };
 }
 function getTodayName() {
   return nowInMecca().day;
@@ -45,26 +48,57 @@ function getTodayName() {
 function nowMinutes() {
   return nowInMecca().minutes;
 }
+/** Today's real calendar date in Mecca time, as "YYYY-MM-DD". This is
+ * what bookings are actually keyed by now — see the file-level note above. */
+function getTodayDate() {
+  return nowInMecca().date;
+}
+/** Converts a "YYYY-MM-DD" date string to its weekday name — used only
+ * for attendance lookups (which are genuinely weekly-recurring by design)
+ * and for display labels, never for matching bookings against each other. */
+function dateToDayName(dateStr) {
+  const d = new Date(dateStr + "T12:00:00Z"); // noon UTC avoids any date-shift from local TZ parsing
+  return DAY_ORDER[d.getUTCDay()];
+}
+/** Adds N days to a "YYYY-MM-DD" date string, returning a new "YYYY-MM-DD". */
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+/** The 7 real calendar dates (Sunday→Saturday) of the CURRENT week, aligned
+ * with DAY_ORDER's indices — used for weekly views that need actual dates
+ * instead of a perpetual weekday-name aggregate. */
+function getCurrentWeekDates() {
+  const today = getTodayDate();
+  const todayDow = new Date(today + "T12:00:00Z").getUTCDay();
+  const sunday = addDays(today, -todayDow);
+  return DAY_ORDER.map((_, i) => addDays(sunday, i));
+}
 
 // ---- Data queries (read-only helpers built on top of dataService) ----
+// NOTE: employeesForDay/isEmployeeWorking take a WEEKDAY NAME (attendance
+// is intentionally a recurring weekly schedule). Every other function
+// below takes a REAL CALENDAR DATE ("YYYY-MM-DD") — this is the actual
+// fix for bookings no longer silently recurring every week.
 function employeesForDay(day) {
   const attendance = dataService.getAttendance();
   const employees = dataService.getEmployees();
   const ids = attendance[day] || [];
   return employees.filter(e => ids.includes(e.id));
 }
-function bookingsForDay(day) {
-  return dataService.getBookings().filter(b => b.day === day && b.status !== "cancelled");
+function bookingsForDay(date) {
+  return dataService.getBookings().filter(b => b.date === date && b.status !== "cancelled");
 }
-function bookingsForEmployeeDay(employeeId, day) {
-  return bookingsForDay(day).filter(b => b.employeeId === employeeId);
+function bookingsForEmployeeDay(employeeId, date) {
+  return bookingsForDay(date).filter(b => b.employeeId === employeeId);
 }
-function usedMinutes(employeeId, day) {
-  return bookingsForEmployeeDay(employeeId, day).reduce((sum, b) => sum + b.duration, 0);
+function usedMinutes(employeeId, date) {
+  return bookingsForEmployeeDay(employeeId, date).reduce((sum, b) => sum + b.duration, 0);
 }
-function remainingMinutes(employeeId, day) {
+function remainingMinutes(employeeId, date) {
   const cfg = dataService.getConfig();
-  return cfg.dailyBreakMinutes - usedMinutes(employeeId, day);
+  return cfg.dailyBreakMinutes - usedMinutes(employeeId, date);
 }
 function isEmployeeWorking(employeeId, day) {
   const attendance = dataService.getAttendance();
@@ -128,7 +162,7 @@ function hasInsufficientGap(day, start, end, gapMinutes) {
 
 function evaluateSlot(employeeId, day, start, end) {
   const cfg = dataService.getConfig();
-  const today = getTodayName();
+  const today = getTodayDate();
 
   // NOTE: attendance is no longer a hard block here. Someone can come in
   // for support/overtime on a day they're not normally scheduled, and

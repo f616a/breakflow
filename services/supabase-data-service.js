@@ -69,7 +69,7 @@ const SupabaseDataService = (() => {
 
   // ---- row <-> app-shape mapping ----
   const bookingFromRow = r => ({
-    id: r.id, day: r.day, employeeId: r.employee_id, start: r.start_min, end: r.end_min, duration: r.duration,
+    id: r.id, day: r.day, date: r.date, employeeId: r.employee_id, start: r.start_min, end: r.end_min, duration: r.duration,
     reason: r.reason || "", status: r.status, isEmergency: !!r.is_emergency, exceededCapacity: !!r.exceeded_capacity,
     rescheduledFromStart: r.rescheduled_from_start, rescheduledFromEnd: r.rescheduled_from_end,
     bookedAt: r.booked_at, startedAt: r.started_at, completedAt: r.completed_at, cancelledAt: r.cancelled_at
@@ -197,15 +197,20 @@ const SupabaseDataService = (() => {
   // split second between our check and the write), we roll the optimistic
   // entry back out and tell the person.
   function createBooking({ day, employeeId, start, end, duration, reason }) {
+    // Callers now pass a REAL DATE ("YYYY-MM-DD") as `day` — the weekday
+    // name is derived from it purely for display/backward-compatible
+    // columns; the actual date is what everything is matched against.
+    const date = day;
+    const dayName = dateToDayName(date);
     const id = newId();
     const booking = {
-      id, day, employeeId, start, end, duration, reason: reason || "", status: "confirmed",
+      id, day: dayName, date, employeeId, start, end, duration, reason: reason || "", status: "confirmed",
       bookedAt: new Date().toISOString(), startedAt: null, completedAt: null, cancelledAt: null
     };
     cache.bookings.push(booking); // instant UI feedback — the slot list updates right away
 
     client.rpc("create_booking_safe", {
-      p_id: id, p_day: day, p_employee_id: employeeId, p_start: start, p_end: end,
+      p_id: id, p_day: dayName, p_date: date, p_employee_id: employeeId, p_start: start, p_end: end,
       p_duration: duration, p_reason: booking.reason
     }).then(({ data, error }) => {
       if (error || !data || !data.ok) {
@@ -299,7 +304,7 @@ const SupabaseDataService = (() => {
     // window [now, desiredEnd) against every real rule in js/booking.js.
     const originalBookings = cache.bookings;
     cache.bookings = originalBookings.filter(b => b.id !== bookingId);
-    const check = evaluateSlot(booking.employeeId, booking.day, now, desiredEnd);
+    const check = evaluateSlot(booking.employeeId, booking.date, now, desiredEnd);
     cache.bookings = originalBookings;
 
     let newEnd, newDuration, extended;
@@ -377,20 +382,20 @@ const SupabaseDataService = (() => {
    */
   function requestLeave({ employeeId, reason }) {
     const cfg = getConfig();
-    const day = getTodayName();
+    const date = getTodayDate();
     const now = nowMinutes();
     const shiftEndMin = timeToMinutes(cfg.shiftEnd);
     const compensationMinutes = Math.max(0, shiftEndMin - now);
 
     cache.bookings
-      .filter(b => b.employeeId === employeeId && b.day === day && b.status === "confirmed")
+      .filter(b => b.employeeId === employeeId && b.date === date && b.status === "confirmed")
       .forEach(b => cancelBooking(b.id));
 
     const id = newId();
-    const leave = { id, employeeId, day, compensationMinutes, reason: reason || "", createdAt: new Date().toISOString() };
+    const leave = { id, employeeId, day: date, compensationMinutes, reason: reason || "", createdAt: new Date().toISOString() };
     cache.leaveRequests.unshift(leave);
     client.from("leave_requests").insert({
-      id, employee_id: employeeId, day, compensation_minutes: compensationMinutes, reason: leave.reason, created_at: leave.createdAt
+      id, employee_id: employeeId, day: date, compensation_minutes: compensationMinutes, reason: leave.reason, created_at: leave.createdAt
     }).then(({ error }) => { if (error) console.error("requestLeave", error); });
 
     logActivity(`${empName(employeeId)} requested leave for the rest of the day — ${compensationMinutes} min compensation owed`);
@@ -407,85 +412,6 @@ const SupabaseDataService = (() => {
       .reduce((sum, l) => sum + l.compensationMinutes, 0);
   }
 
-  /**
-   * Peak Time activation with an automatic fair queue. Anyone who already
-   * had a confirmed (not-yet-started) break overlapping the chosen window
-   * gets that booking cancelled and replaced with a strict one-at-a-time
-   * turn: 15 minutes each, a 2-minute gap between turns, in a RANDOM
-   * order (so no one is systematically first or last every time). This
-   * deliberately bypasses the normal 5-minute minGap rule and the usual
-   * concurrency check — Amal is explicitly orchestrating this queue by
-   * hand, and the queue is self-consistent (never more than one person
-   * at a time) by construction, so those two rules don't apply here.
-   * Everything else (daily cap, continuous-break limit, shift-end buffer)
-   * is NOT re-validated for simplicity — this is an occasional manual
-   * admin action for a small handful of people, not everyday booking.
-   */
-  function activatePeakTimeQueue(peakStartStr, peakEndStr) {
-    const day = getTodayName();
-    const peakStart = timeToMinutes(peakStartStr), peakEnd = timeToMinutes(peakEndStr);
-    const QUEUE_DURATION = 15, QUEUE_GAP = 2;
-
-    const overlapping = cache.bookings.filter(b =>
-      b.day === day && b.status === "confirmed" && b.start < peakEnd && b.end > peakStart
-    );
-    // Remember each affected employee's ORIGINAL time before we touch anything,
-    // so the new booking can carry "what it used to be" for the employee's page.
-    const originalByEmployee = {};
-    overlapping.forEach(b => { if (!originalByEmployee[b.employeeId]) originalByEmployee[b.employeeId] = b; });
-
-    const employeeIds = [...new Set(overlapping.map(b => b.employeeId))];
-    for (let i = employeeIds.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [employeeIds[i], employeeIds[j]] = [employeeIds[j], employeeIds[i]];
-    }
-
-    overlapping.forEach(b => cancelBooking(b.id));
-
-    let cursor = peakStart;
-    const queue = [];
-    employeeIds.forEach(employeeId => {
-      const start = cursor, end = cursor + QUEUE_DURATION;
-      const id = newId();
-      const nowIso = new Date().toISOString();
-      const original = originalByEmployee[employeeId];
-      const booking = {
-        id, day, employeeId, start, end, duration: QUEUE_DURATION, reason: "Peak Time queue",
-        status: "confirmed", isEmergency: false, exceededCapacity: false,
-        rescheduledFromStart: original.start, rescheduledFromEnd: original.end,
-        bookedAt: nowIso, startedAt: null, completedAt: null, cancelledAt: null
-      };
-      cache.bookings.push(booking);
-      client.from("bookings").insert({
-        id, day, employee_id: employeeId, start_min: start, end_min: end, duration: QUEUE_DURATION,
-        reason: booking.reason, status: "confirmed", booked_at: nowIso,
-        rescheduled_from_start: original.start, rescheduled_from_end: original.end
-      }).then(({ error }) => { if (error) console.error("activatePeakTimeQueue", error); });
-      queue.push({ employeeId, start, end, previousStart: original.start, previousEnd: original.end });
-      cursor = end + QUEUE_GAP;
-    });
-
-    updateConfig({ peakTimeActive: true, peakTimeStart: peakStartStr, peakTimeEnd: peakEndStr });
-    logActivity(`Peak Time activated (${peakStartStr}–${peakEndStr}) — ${queue.length} people queued, 15 min each, 2 min gaps`);
-    notifyChange();
-
-    return { ok: true, queue };
-  }
-
-  /**
-   * "اختاري المداومين" mode — Amal explicitly picks which employees to
-   * queue (rather than the system auto-detecting who already had a
-   * booking). Each selected employee's ENTIRE remaining daily balance
-   * becomes their turn length (not a fixed 15 min), scheduled back to
-   * back with a 2-minute gap, starting from the chosen time and
-   * continuing until the break window's own end (cfg.breakWindowEnd —
-   * "4:30" by default, but always follows whatever Admin has set).
-   * Anyone already booked today gets that booking cancelled first, so
-   * their "remaining balance" is computed cleanly with no double count.
-   * Employees who have zero balance left, or for whom no time remains
-   * before the cutoff, are skipped and reported back — not silently
-   * dropped — so Amal can see exactly who didn't get queued and why.
-   */
   /**
    * Peak Time — AUTO-DETECT mode. Amal does NOT hand-pick employees;
    * the system finds everyone who ALREADY has a confirmed (not yet
@@ -508,15 +434,17 @@ const SupabaseDataService = (() => {
    */
   function activatePeakTimeAutoQueue(mode, startStr, endStr) {
     const cfg = getConfig();
-    const day = getTodayName();
+    const date = getTodayDate();
+    const dayName = getTodayName();
     const windowStart = timeToMinutes(startStr);
     const windowEnd = mode === "toShiftEnd" ? timeToMinutes(cfg.shiftEnd) : timeToMinutes(endStr);
     const ROUND_CHUNK = 15, QUEUE_GAP = 2;
 
     // Auto-detect: anyone with a confirmed, not-yet-started booking that
-    // overlaps the window at all.
+    // overlaps the window at all — matched against TODAY'S REAL DATE, so
+    // this can never accidentally catch a booking from a different week.
     const conflicting = cache.bookings.filter(b =>
-      b.day === day && b.status === "confirmed" && b.start < windowEnd && b.end > windowStart
+      b.date === date && b.status === "confirmed" && b.start < windowEnd && b.end > windowStart
     );
     let employeeIds = [...new Set(conflicting.map(b => b.employeeId))];
     // Stable, predictable order: whoever's original conflicting slot started earliest goes first.
@@ -538,7 +466,7 @@ const SupabaseDataService = (() => {
     // Remaining balance is read AFTER cancelling the conflicting booking(s)
     // above, so it correctly reflects the time just freed up.
     const remainingByEmployee = {};
-    employeeIds.forEach(id => { remainingByEmployee[id] = remainingMinutes(id, day); });
+    employeeIds.forEach(id => { remainingByEmployee[id] = remainingMinutes(id, date); });
 
     const skipped = [];
     const activeIds = employeeIds.filter(id => {
@@ -566,14 +494,14 @@ const SupabaseDataService = (() => {
         hadFirstTurn.add(employeeId);
 
         const booking = {
-          id, day, employeeId, start, end, duration: turn, reason: "Peak Time queue",
+          id, day: dayName, date, employeeId, start, end, duration: turn, reason: "Peak Time queue",
           status: "confirmed", isEmergency: false, exceededCapacity: false,
           rescheduledFromStart: original ? original.start : null, rescheduledFromEnd: original ? original.end : null,
           bookedAt: nowIso, startedAt: null, completedAt: null, cancelledAt: null
         };
         cache.bookings.push(booking);
         client.from("bookings").insert({
-          id, day, employee_id: employeeId, start_min: start, end_min: end, duration: turn,
+          id, day: dayName, date, employee_id: employeeId, start_min: start, end_min: end, duration: turn,
           reason: booking.reason, status: "confirmed", booked_at: nowIso,
           rescheduled_from_start: original ? original.start : null, rescheduled_from_end: original ? original.end : null
         }).then(({ error }) => { if (error) console.error("activatePeakTimeAutoQueue", error); });
@@ -606,17 +534,18 @@ const SupabaseDataService = (() => {
    */
   function createEmergencyBreak({ employeeId, duration, reason }) {
     const cfg = getConfig();
-    const day = getTodayName();
+    const date = getTodayDate();
+    const dayName = getTodayName();
     const start = nowMinutes();
     const end = start + duration;
 
-    if (isEmployeeAlreadyBookedAt(employeeId, day, start, end)) {
+    if (isEmployeeAlreadyBookedAt(employeeId, date, start, end)) {
       return { ok: false, reasonKey: "alreadyBooked" };
     }
-    if (duration > remainingMinutes(employeeId, day)) {
+    if (duration > remainingMinutes(employeeId, date)) {
       return { ok: false, reasonKey: "errorInsufficientBalance" };
     }
-    if (continuousLengthIfAdded(employeeId, day, start, end) > cfg.maxContinuousBreakMinutes) {
+    if (continuousLengthIfAdded(employeeId, date, start, end) > cfg.maxContinuousBreakMinutes) {
       return { ok: false, reasonKey: "continuousExceeded" };
     }
     if (timeToMinutes(cfg.shiftEnd) - end < 15) {
@@ -626,18 +555,18 @@ const SupabaseDataService = (() => {
     // Record whether this genuinely exceeded capacity (i.e. whether a
     // NORMAL booking would have been blocked here) — this is what lets
     // Amal's monthly report answer "did this actually affect anyone else?"
-    const exceededCapacity = (overlappingCount(day, start, end, employeeId) + 1) > cfg.maxConcurrentBreaks;
+    const exceededCapacity = (overlappingCount(date, start, end, employeeId) + 1) > cfg.maxConcurrentBreaks;
 
     const id = newId();
     const nowIso = new Date().toISOString();
     const booking = {
-      id, day, employeeId, start, end, duration, reason: reason || "",
+      id, day: dayName, date, employeeId, start, end, duration, reason: reason || "",
       status: "on-break", isEmergency: true, exceededCapacity,
       bookedAt: nowIso, startedAt: nowIso, completedAt: null, cancelledAt: null
     };
     cache.bookings.push(booking);
     client.from("bookings").insert({
-      id, day, employee_id: employeeId, start_min: start, end_min: end, duration,
+      id, day: dayName, date, employee_id: employeeId, start_min: start, end_min: end, duration,
       reason: booking.reason, status: "on-break", is_emergency: true, exceeded_capacity: exceededCapacity,
       booked_at: nowIso, started_at: nowIso
     }).then(({ error }) => { if (error) console.error("createEmergencyBreak", error); });
@@ -782,30 +711,34 @@ const SupabaseDataService = (() => {
     if (!fromBooking || !toBooking || fromBooking.status !== "confirmed" || toBooking.status !== "confirmed") {
       return { ok: false, reasonKey: "swapBookingGone" };
     }
-    const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
-    const todayName = DAY_ORDER[new Date().getDay()];
-    if (fromBooking.day === todayName && nowMin >= fromBooking.start) return { ok: false, reasonKey: "swapAlreadyStarted" };
-    if (toBooking.day === todayName && nowMin >= toBooking.start) return { ok: false, reasonKey: "swapAlreadyStarted" };
+    // Mecca-aware "now" (this previously used the server/browser's own
+    // local clock — same class of bug the booking rules had before Mecca
+    // time was made explicit everywhere) and real-date comparisons (so a
+    // booking from a past week is never mistaken for "starting today").
+    const nowMin = nowMinutes();
+    const todayDate = getTodayDate();
+    if (fromBooking.date === todayDate && nowMin >= fromBooking.start) return { ok: false, reasonKey: "swapAlreadyStarted" };
+    if (toBooking.date === todayDate && nowMin >= toBooking.start) return { ok: false, reasonKey: "swapAlreadyStarted" };
 
     // Dry-run validation: temporarily hide the two swapping bookings from
     // the cache, re-run the real evaluateSlot() rule engine (js/booking.js)
     // for each side's NEW time, then restore the cache either way.
     const originalBookings = cache.bookings;
     cache.bookings = originalBookings.filter(b => b.id !== fromBooking.id && b.id !== toBooking.id);
-    const fromCheck = evaluateSlot(fromBooking.employeeId, toBooking.day, toBooking.start, toBooking.end);
-    const toCheck = evaluateSlot(toBooking.employeeId, fromBooking.day, fromBooking.start, fromBooking.end);
+    const fromCheck = evaluateSlot(fromBooking.employeeId, toBooking.date, toBooking.start, toBooking.end);
+    const toCheck = evaluateSlot(toBooking.employeeId, fromBooking.date, fromBooking.start, fromBooking.end);
     cache.bookings = originalBookings;
     if (fromCheck.status !== "available" || toCheck.status !== "available") {
       return { ok: false, reasonKey: "swapNoLongerValid" };
     }
 
-    const tmp = { start: fromBooking.start, end: fromBooking.end, duration: fromBooking.duration, day: fromBooking.day };
-    fromBooking.start = toBooking.start; fromBooking.end = toBooking.end; fromBooking.duration = toBooking.duration; fromBooking.day = toBooking.day;
-    toBooking.start = tmp.start; toBooking.end = tmp.end; toBooking.duration = tmp.duration; toBooking.day = tmp.day;
+    const tmp = { start: fromBooking.start, end: fromBooking.end, duration: fromBooking.duration, day: fromBooking.day, date: fromBooking.date };
+    fromBooking.start = toBooking.start; fromBooking.end = toBooking.end; fromBooking.duration = toBooking.duration; fromBooking.day = toBooking.day; fromBooking.date = toBooking.date;
+    toBooking.start = tmp.start; toBooking.end = tmp.end; toBooking.duration = tmp.duration; toBooking.day = tmp.day; toBooking.date = tmp.date;
 
-    client.from("bookings").update({ start_min: fromBooking.start, end_min: fromBooking.end, duration: fromBooking.duration, day: fromBooking.day })
+    client.from("bookings").update({ start_min: fromBooking.start, end_min: fromBooking.end, duration: fromBooking.duration, day: fromBooking.day, date: fromBooking.date })
       .eq("id", fromBooking.id).then(({ error }) => { if (error) console.error(error); });
-    client.from("bookings").update({ start_min: toBooking.start, end_min: toBooking.end, duration: toBooking.duration, day: toBooking.day })
+    client.from("bookings").update({ start_min: toBooking.start, end_min: toBooking.end, duration: toBooking.duration, day: toBooking.day, date: toBooking.date })
       .eq("id", toBooking.id).then(({ error }) => { if (error) console.error(error); });
 
     swap.status = "accepted";
@@ -839,7 +772,7 @@ const SupabaseDataService = (() => {
   return {
     ready: readyPromise, onChange,
     getBookings, createBooking, cancelBooking, updateBookingStatus, startBreakSmart, endBreakEarly, createEmergencyBreak,
-    requestLeave, getLeaveRequests, getMonthlyCompensation, activatePeakTimeQueue, activatePeakTimeAutoQueue,
+    requestLeave, getLeaveRequests, getMonthlyCompensation, activatePeakTimeAutoQueue,
     getConfig, updateConfig,
     getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl, setEmployeeTheme,
     getAttendance, updateAttendance,
