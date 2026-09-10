@@ -38,6 +38,7 @@ const CONFIG = {
   // chosen window (e.g. a busy hour), then turn it back off. Editable
   // from مساحة أمل; not meant to be hand-edited here.
   peakTimeActive: false,
+  peakTimeMode: "specificWindow", // "specificWindow" | "toShiftEnd"
   peakTimeStart: "12:00",
   peakTimeEnd: "13:00",
 

@@ -79,7 +79,7 @@ const SupabaseDataService = (() => {
     fromEmployeeId: r.from_employee_id, toEmployeeId: r.to_employee_id, day: r.day,
     status: r.status, requestedAt: r.requested_at, respondedAt: r.responded_at
   });
-  const employeeFromRow = r => ({ id: r.id, name: r.name, nameEn: r.name_en, gender: r.gender, photoUrl: r.photo_url || "", pin: r.pin || "" });
+  const employeeFromRow = r => ({ id: r.id, name: r.name, nameEn: r.name_en, gender: r.gender, photoUrl: r.photo_url || "", pin: r.pin || "", themeChoice: r.theme_choice || "" });
   const notificationFromRow = r => ({ id: r.id, title: r.title, body: r.body, type: r.type, read: r.read, createdAt: r.created_at });
   const leaveRequestFromRow = r => ({
     id: r.id, employeeId: r.employee_id, day: r.day, compensationMinutes: r.compensation_minutes,
@@ -487,42 +487,66 @@ const SupabaseDataService = (() => {
    * dropped — so Amal can see exactly who didn't get queued and why.
    */
   /**
-   * "اختاري المداومين" mode, ROUND-ROBIN — Amal explicitly picks which
-   * employees to queue. Instead of giving someone their entire remaining
-   * balance in one long turn, everyone gets a MAX 15-minute turn per
-   * round, in the same order, cycling back around for a second (third,
-   * etc.) 15-minute turn if they still have balance left — so with a
-   * mixed group, no one is stuck waiting through someone else's full
-   * hour before getting their first break. The last turn for anyone may
-   * be shorter than 15 min if that's all the balance (or window room)
-   * they have left. Continues until every selected employee's balance
-   * is exhausted or the break window's own end is reached.
+   * Peak Time — AUTO-DETECT mode. Amal does NOT hand-pick employees;
+   * the system finds everyone who ALREADY has a confirmed (not yet
+   * started) booking overlapping the chosen window, and reschedules
+   * ONLY that conflicting booking for each of them (any other booking
+   * they have outside the window is left completely untouched).
+   *
+   * Two modes:
+   *   - "toShiftEnd": window is [startStr, shiftEnd). Everyone affected
+   *     is guaranteed their FULL remaining balance, round-robin, one at
+   *     a time, before the shift ends (as long as total demand fits).
+   *   - "specificWindow": window is [startStr, endStr). Only bookings
+   *     inside that specific window are touched; anything after it goes
+   *     back to normal capacity and is completely unaffected.
+   *
+   * Either way: round-robin in 15-minute turns (cycling back for anyone
+   * with balance left) with a 2-minute gap, so no one waits through
+   * someone else's entire balance before getting their first turn.
+   * Capacity is forced to 1 for the whole window via peakTimeActive.
    */
-  function activatePeakTimeQueueForSelected(employeeIds, peakStartStr) {
+  function activatePeakTimeAutoQueue(mode, startStr, endStr) {
     const cfg = getConfig();
     const day = getTodayName();
-    const cutoffMin = timeToMinutes(cfg.breakWindowEnd);
-    const QUEUE_GAP = 2;
-    const ROUND_CHUNK = 15;
+    const windowStart = timeToMinutes(startStr);
+    const windowEnd = mode === "toShiftEnd" ? timeToMinutes(cfg.shiftEnd) : timeToMinutes(endStr);
+    const ROUND_CHUNK = 15, QUEUE_GAP = 2;
 
-    // Balances are snapshotted ONCE, against the CURRENT (untouched) state,
-    // before anything is cancelled — so someone who genuinely has zero
-    // balance left is skipped without their real booking ever being touched.
+    // Auto-detect: anyone with a confirmed, not-yet-started booking that
+    // overlaps the window at all.
+    const conflicting = cache.bookings.filter(b =>
+      b.day === day && b.status === "confirmed" && b.start < windowEnd && b.end > windowStart
+    );
+    let employeeIds = [...new Set(conflicting.map(b => b.employeeId))];
+    // Stable, predictable order: whoever's original conflicting slot started earliest goes first.
+    employeeIds.sort((a, b) => {
+      const ea = conflicting.find(x => x.employeeId === a).start;
+      const eb = conflicting.find(x => x.employeeId === b).start;
+      return ea - eb;
+    });
+
+    // Cancel ONLY the conflicting booking(s) for each affected employee —
+    // anything they have booked outside this window is left alone.
+    const originalByEmployee = {};
+    employeeIds.forEach(id => {
+      const mine = conflicting.filter(b => b.employeeId === id);
+      originalByEmployee[id] = mine[0];
+      mine.forEach(b => cancelBooking(b.id));
+    });
+
+    // Remaining balance is read AFTER cancelling the conflicting booking(s)
+    // above, so it correctly reflects the time just freed up.
     const remainingByEmployee = {};
     employeeIds.forEach(id => { remainingByEmployee[id] = remainingMinutes(id, day); });
 
-    const originalByEmployee = {};
     const skipped = [];
-    const activeIds = [];
-    employeeIds.forEach(id => {
-      if (remainingByEmployee[id] <= 0) { skipped.push({ employeeId: id, reasonKey: "noBalance" }); return; }
-      const existing = cache.bookings.filter(b => b.employeeId === id && b.day === day && b.status === "confirmed");
-      if (existing.length) originalByEmployee[id] = existing[0];
-      existing.forEach(b => cancelBooking(b.id));
-      activeIds.push(id);
+    const activeIds = employeeIds.filter(id => {
+      if (remainingByEmployee[id] <= 0) { skipped.push({ employeeId: id, reasonKey: "noBalance" }); return false; }
+      return true;
     });
 
-    let cursor = timeToMinutes(peakStartStr);
+    let cursor = windowStart;
     const queue = [];
     const noRoom = new Set();
     const hadFirstTurn = new Set();
@@ -530,7 +554,7 @@ const SupabaseDataService = (() => {
     while (activeIds.some(id => remainingByEmployee[id] > 0 && !noRoom.has(id))) {
       for (const employeeId of activeIds) {
         if (remainingByEmployee[employeeId] <= 0 || noRoom.has(employeeId)) continue;
-        const roomLeft = cutoffMin - cursor;
+        const roomLeft = windowEnd - cursor;
         if (roomLeft <= 0) { noRoom.add(employeeId); continue; }
 
         const turn = Math.min(ROUND_CHUNK, remainingByEmployee[employeeId], roomLeft);
@@ -552,7 +576,7 @@ const SupabaseDataService = (() => {
           id, day, employee_id: employeeId, start_min: start, end_min: end, duration: turn,
           reason: booking.reason, status: "confirmed", booked_at: nowIso,
           rescheduled_from_start: original ? original.start : null, rescheduled_from_end: original ? original.end : null
-        }).then(({ error }) => { if (error) console.error("activatePeakTimeQueueForSelected", error); });
+        }).then(({ error }) => { if (error) console.error("activatePeakTimeAutoQueue", error); });
 
         queue.push({ employeeId, start, end, duration: turn, previousStart: original ? original.start : null, previousEnd: original ? original.end : null });
         remainingByEmployee[employeeId] -= turn;
@@ -560,17 +584,15 @@ const SupabaseDataService = (() => {
       }
     }
 
-    // Anyone who never got even a first turn because the window was already
-    // full before their turn came up is reported as skipped, not silently dropped.
     activeIds.forEach(id => {
       if (!hadFirstTurn.has(id)) skipped.push({ employeeId: id, reasonKey: "noRoomLeft" });
     });
 
-    updateConfig({ peakTimeActive: true, peakTimeStart: peakStartStr, peakTimeEnd: cfg.breakWindowEnd });
-    logActivity(`Peak Time round-robin activated from ${peakStartStr} — ${queue.length} turns across ${hadFirstTurn.size} people, ${skipped.length} skipped`);
+    updateConfig({ peakTimeActive: true, peakTimeMode: mode, peakTimeStart: startStr, peakTimeEnd: mode === "toShiftEnd" ? cfg.shiftEnd : endStr });
+    logActivity(`Peak Time (${mode}) activated ${startStr}–${mode === "toShiftEnd" ? cfg.shiftEnd : endStr} — ${queue.length} turns across ${hadFirstTurn.size} people, ${skipped.length} skipped`);
     notifyChange();
 
-    return { ok: true, queue, skipped };
+    return { ok: true, mode, windowStart, windowEnd, queue, skipped };
   }
 
   /**
@@ -643,7 +665,7 @@ const SupabaseDataService = (() => {
   function getEmployees() { return cache.employees; }
   function updateEmployees(list) {
     cache.employees = list;
-    const rows = list.map(e => ({ id: e.id, name: e.name, name_en: e.nameEn, gender: e.gender, photo_url: e.photoUrl || null, pin: e.pin || null }));
+    const rows = list.map(e => ({ id: e.id, name: e.name, name_en: e.nameEn, gender: e.gender, photo_url: e.photoUrl || null, pin: e.pin || null, theme_choice: e.themeChoice || null }));
     client.from("employees").upsert(rows).then(({ error }) => { if (error) console.error("updateEmployees", error); });
     logActivity("Admin updated the employee roster");
     return list;
@@ -659,6 +681,16 @@ const SupabaseDataService = (() => {
   }
   function getAvatarPublicUrl(path) {
     return client.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+  }
+
+  /** Lets an employee set their own page's color theme (one of THEME_PRESETS' keys). */
+  function setEmployeeTheme(employeeId, themeKey) {
+    const emp = cache.employees.find(e => e.id === employeeId);
+    if (!emp) return null;
+    emp.themeChoice = themeKey;
+    client.from("employees").update({ theme_choice: themeKey }).eq("id", employeeId)
+      .then(({ error }) => { if (error) console.error("setEmployeeTheme", error); });
+    return emp;
   }
 
   // ---------------------------------------------------------------
@@ -807,9 +839,9 @@ const SupabaseDataService = (() => {
   return {
     ready: readyPromise, onChange,
     getBookings, createBooking, cancelBooking, updateBookingStatus, startBreakSmart, endBreakEarly, createEmergencyBreak,
-    requestLeave, getLeaveRequests, getMonthlyCompensation, activatePeakTimeQueue, activatePeakTimeQueueForSelected,
+    requestLeave, getLeaveRequests, getMonthlyCompensation, activatePeakTimeQueue, activatePeakTimeAutoQueue,
     getConfig, updateConfig,
-    getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl,
+    getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl, setEmployeeTheme,
     getAttendance, updateAttendance,
     getNotifications, addNotification, markNotificationRead, markAllNotificationsRead,
     getActivityLog, logActivity,

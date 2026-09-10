@@ -82,6 +82,10 @@ const TRANSLATIONS = {
     takeEmergencyBreak: "Take Emergency Break Now", emergencyMinutes: "Minutes",
     emergency: "Emergency",
     wasRescheduledFrom: "was", byManagementPeakTime: "changed by management (Peak Time)",
+    peakBannerTitle: "Peak Time is active",
+    peakBannerBodyWindow: "Management has activated Peak Time from {start} to {end}. During this window, only ONE person can be on break at a time. If your break fell in this window, it's been rescheduled to a fair turn (15 minutes at a time). Breaks outside this window are unaffected.",
+    peakBannerBodyToShiftEnd: "Management has activated Peak Time from {start} until the end of the shift. During this time, only ONE person can be on break at a time. Anyone affected has been rescheduled into a fair turn-based order (15 minutes at a time) to make sure everyone still gets their full break before the shift ends.",
+    customizeMyPage: "Customize my page",
 
     requestLeave: "Request Leave From Duty", requestLeaveSub: "Cancels today's remaining breaks and logs compensation time owed.",
     requestLeaveConfirm: "Requesting leave will cancel all your remaining breaks today and log compensation time. Are you sure?",
@@ -156,6 +160,10 @@ const TRANSLATIONS = {
     takeEmergencyBreak: "خذ بريك اضطراري الحين", emergencyMinutes: "الدقايق",
     emergency: "اضطراري",
     wasRescheduledFrom: "كان بوقت", byManagementPeakTime: "تغيّر بسبب تفعيل وقت الذروة من الإدارة",
+    peakBannerTitle: "وقت الذروة مفعّل",
+    peakBannerBodyWindow: "فعّلت الإدارة وضع الذروة من {start} إلى {end}. خلال هذي الفترة، شخص وحد بس يقدر يكون على بريك بنفس اللحظة. لو كان بريكك يقع بهذي الفترة، انترتب لك بدور عادل (15 دقيقة بالدور). بريكاتك خارج هذي الفترة ما تأثرت.",
+    peakBannerBodyToShiftEnd: "فعّلت الإدارة وضع الذروة من {start} لين نهاية الدوام. خلال هذي الفترة، شخص وحد بس يقدر يكون على بريك بنفس اللحظة. أي حد تأثر انترتب له دور عادل (15 دقيقة بالدور) عشان يضمن حصوله على كامل وقته قبل ما ينتهي الدوام.",
+    customizeMyPage: "خصّصي صفحتك",
 
     requestLeave: "استئذان من الدوام", requestLeaveSub: "يلغي بريكات اليوم الباقية ويسجل وقت التعويض المستحق.",
     requestLeaveConfirm: "الاستئذان بيلغي كل بريكاتك الباقية اليوم ويسجل عليك وقت تعويض. متأكد؟",

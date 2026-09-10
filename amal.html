@@ -93,13 +93,22 @@
     </div>
     <div class="card" style="border-color:var(--danger);">
       <h2 style="color:var(--danger);">⏱ Peak Time</h2>
-      <p class="sub">Pick who's on duty — everyone gets a max 15-minute turn, cycling back around if they still have balance left, until the break window ends.</p>
-      <label style="display:flex;flex-direction:column;font-size:11px;color:var(--text-soft);max-width:180px;margin-bottom:6px;">Start queuing from
+      <p class="sub">Automatically finds anyone ALREADY booked in the chosen window and re-queues just that conflicting break, one at a time (15 min turns) — anything outside the window is untouched.</p>
+
+      <div class="pill-toggle" style="margin-bottom:14px;">
+        <button type="button" id="peakModeWindowBtn" class="active">Specific window</button>
+        <button type="button" id="peakModeShiftEndBtn">Until shift end</button>
+      </div>
+
+      <label style="display:flex;flex-direction:column;font-size:11px;color:var(--text-soft);max-width:180px;margin-bottom:6px;">Start
         <input type="time" id="peakStartInput" style="padding:8px;border-radius:8px;border:1.5px solid var(--border);">
       </label>
+      <label id="peakEndInputWrap" style="display:flex;flex-direction:column;font-size:11px;color:var(--text-soft);max-width:180px;margin-bottom:6px;">End
+        <input type="time" id="peakEndInput" style="padding:8px;border-radius:8px;border:1.5px solid var(--border);">
+      </label>
       <p class="sub" id="peakEndNote" style="margin:0 0 12px;"></p>
-      <div id="peakEmployeeChecklist" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;max-height:280px;overflow-y:auto;"></div>
-      <button class="btn btn-danger-solid" id="togglePeakTimeBtn" style="width:100%;">Activate Peak Time Queue</button>
+
+      <button class="btn btn-danger-solid" id="togglePeakTimeBtn" style="width:100%;">Activate Peak Time</button>
       <div id="peakTimeChangesList" style="margin-top:12px;"></div>
     </div>
   </div>

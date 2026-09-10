@@ -607,6 +607,33 @@ function renderEmployeeStatusCard() {
     </span>`;
   el("statusBalance").textContent = remaining > 0 ? `${remaining} ${i18n.t("remaining")}` : i18n.t("balanceCompleted");
   el("statusFill").style.width = `${Math.min(100, (used / cfg.dailyBreakMinutes) * 100)}%`;
+  renderThemeSwatches();
+}
+
+// Lets the employee pick one of the shared color-palette presets for
+// their own page (see js/employee-themes.js) — applies immediately and
+// persists so it's remembered next time they open the app too.
+function renderThemeSwatches() {
+  const section = el("themePickerSection");
+  const row = el("themeSwatchRow");
+  if (!homeState.employeeId) { section.classList.add("hidden"); return; }
+  section.classList.remove("hidden");
+  const emp = getEmployeeById(homeState.employeeId);
+  const current = emp.themeChoice || "navy";
+  row.innerHTML = Object.keys(THEME_PRESETS).map(key => {
+    const theme = THEME_PRESETS[key];
+    const active = key === current ? "active" : "";
+    return `<button type="button" class="theme-swatch ${active}" data-theme-key="${key}" title="${theme.label}" style="background:linear-gradient(135deg, ${theme["--primary-dark-teal"]}, ${theme["--secondary-teal"]});"></button>`;
+  }).join("");
+  row.querySelectorAll("[data-theme-key]").forEach(btn => {
+    btn.addEventListener("click", () => selectMyTheme(btn.dataset.themeKey));
+  });
+}
+
+function selectMyTheme(themeKey) {
+  dataService.setEmployeeTheme(homeState.employeeId, themeKey);
+  applyEmployeeTheme(homeState.employeeId);
+  renderThemeSwatches();
 }
 
 // Shared fallback avatar (initial letter on a color circle) — used
@@ -619,44 +646,20 @@ function avatarPlaceholderUrl(emp) {
 
 function renderDurationButtons() {
   const remaining = remainingMinutes(homeState.employeeId, homeState.day);
-  const cfg = dataService.getConfig();
-  const b15 = el("btnDur15"), b30 = el("btnDur30"), bCustom = el("btnDurCustom");
-  b15.disabled = remaining < 15;
-  b30.disabled = remaining < 30;
-  bCustom.disabled = remaining < cfg.minBreakMinutes;
-  b15.classList.toggle("selected", homeState.duration === 15);
-  b30.classList.toggle("selected", homeState.duration === 30);
-  bCustom.classList.toggle("selected", homeState.duration !== null && homeState.duration !== 15 && homeState.duration !== 30);
+  document.querySelectorAll(".duration-btn[data-dur]").forEach(btn => {
+    const dur = Number(btn.dataset.dur);
+    btn.disabled = remaining < dur;
+    btn.classList.toggle("selected", homeState.duration === dur);
+  });
 }
 
 function chooseDuration(duration) {
   homeState.duration = duration;
   homeState.selectedSlot = null;
-  el("customDurationRow").classList.add("hidden");
   renderDurationButtons();
   el("stepTime").classList.remove("hidden");
   el("stepConfirm").classList.add("hidden");
   renderSlotGrid();
-}
-
-// Any duration is allowed as long as it fits the employee's remaining
-// balance and is a multiple of 5 minutes (keeps slot math clean) — the
-// booking engine itself (js/booking.js) never hardcodes 15/30 anywhere.
-function openCustomDuration() {
-  el("customDurationRow").classList.remove("hidden");
-  const remaining = remainingMinutes(homeState.employeeId, homeState.day);
-  el("customDurationInput").max = remaining;
-  el("customDurationInput").focus();
-}
-function applyCustomDuration() {
-  const cfg = dataService.getConfig();
-  const remaining = remainingMinutes(homeState.employeeId, homeState.day);
-  let value = Math.round(Number(el("customDurationInput").value) / 5) * 5;
-  if (!value || value < cfg.minBreakMinutes || value > remaining) {
-    NotificationCenter.showToast(i18n.t("unavailable"), "danger");
-    return;
-  }
-  chooseDuration(value);
 }
 
 function renderSlotGrid() {
@@ -791,6 +794,7 @@ function renderFooterCredit() {
 }
 
 function renderAll() {
+  renderPeakTimeBanner();
   renderGreeting();
   renderTopBarAndHero();
   renderWhoAmIGrid();
@@ -803,6 +807,28 @@ function renderAll() {
   renderCompensationSummary();
   renderFooterCredit();
   NotificationCenter.renderBell();
+}
+
+// Persistent, non-dismissible banner — visible for the ENTIRE time Peak
+// Time is active, and disappears automatically the instant Amal turns it
+// off (this just re-reads live config on every render, no local state).
+function renderPeakTimeBanner() {
+  const banner = el("peakTimeBanner");
+  const cfg = dataService.getConfig();
+  if (!cfg.peakTimeActive) { banner.classList.add("hidden"); return; }
+  banner.classList.remove("hidden");
+  const startLabel = minutesToLabel(timeToMinutes(cfg.peakTimeStart));
+  const endLabel = minutesToLabel(timeToMinutes(cfg.peakTimeEnd));
+  if (cfg.peakTimeMode === "toShiftEnd") {
+    el("peakTimeBannerTitle").textContent = i18n.t("peakBannerTitle");
+    el("peakTimeBannerBody").innerHTML = i18n.t("peakBannerBodyToShiftEnd")
+      .replace("{start}", `<span class="no-flip">${startLabel}</span>`);
+  } else {
+    el("peakTimeBannerTitle").textContent = i18n.t("peakBannerTitle");
+    el("peakTimeBannerBody").innerHTML = i18n.t("peakBannerBodyWindow")
+      .replace("{start}", `<span class="no-flip">${startLabel}</span>`)
+      .replace("{end}", `<span class="no-flip">${endLabel}</span>`);
+  }
 }
 
 async function initApp() {
@@ -819,10 +845,9 @@ async function initApp() {
   el("pinPromptSubmitBtn").addEventListener("click", submitPinPrompt);
   el("pinPromptCancelBtn").addEventListener("click", cancelPinPrompt);
   el("pinPromptInput").addEventListener("keydown", e => { if (e.key === "Enter") submitPinPrompt(); });
-  el("btnDur15").addEventListener("click", () => chooseDuration(15));
-  el("btnDur30").addEventListener("click", () => chooseDuration(30));
-  el("btnDurCustom").addEventListener("click", openCustomDuration);
-  el("customDurationApplyBtn").addEventListener("click", applyCustomDuration);
+  document.querySelectorAll(".duration-btn[data-dur]").forEach(btn => {
+    btn.addEventListener("click", () => chooseDuration(Number(btn.dataset.dur)));
+  });
   el("findNextBtn").addEventListener("click", findNext);
   el("bestTimeBtn").addEventListener("click", findBest);
   el("confirmBookingBtn").addEventListener("click", confirmBooking);

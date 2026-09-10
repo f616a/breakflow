@@ -23,12 +23,27 @@ function minutesToLabel(mins) {
 function rangeLabel(start, end) {
   return `${minutesToLabel(start)} — ${minutesToLabel(end)}`;
 }
+/**
+ * Always resolves "now" against Asia/Riyadh (Mecca time), regardless of
+ * what timezone the device itself is set to — a phone with a wrong or
+ * unusual timezone setting still gets correct booking-window behavior.
+ */
+function nowInMecca() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Riyadh", weekday: "short", hour: "numeric", minute: "numeric", hour12: false
+  }).formatToParts(new Date());
+  const get = type => parts.find(p => p.type === type).value;
+  const weekdayShort = get("weekday"); // "Sun".."Sat"
+  const hour = Number(get("hour")) % 24;
+  const minute = Number(get("minute"));
+  const WEEKDAY_MAP = { Sun: "Sunday", Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday" };
+  return { day: WEEKDAY_MAP[weekdayShort], minutes: hour * 60 + minute };
+}
 function getTodayName() {
-  return DAY_ORDER[new Date().getDay()];
+  return nowInMecca().day;
 }
 function nowMinutes() {
-  const d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
+  return nowInMecca().minutes;
 }
 
 // ---- Data queries (read-only helpers built on top of dataService) ----

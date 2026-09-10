@@ -189,44 +189,30 @@ function savePins() {
 // -----------------------------------------------------------------
 // PEAK TIME — temporarily force capacity to 1 for a chosen window.
 // -----------------------------------------------------------------
+let peakTimeMode = "specificWindow"; // local UI selection, mirrors cfg.peakTimeMode once activated
+
 function renderPeakTimeControl() {
   const cfg = dataService.getConfig();
-  const startInput = el("peakStartInput"), btn = el("togglePeakTimeBtn");
+  const startInput = el("peakStartInput"), endInput = el("peakEndInput"), btn = el("togglePeakTimeBtn");
   if (!startInput || !btn) return;
   if (!startInput.dataset.userEdited) startInput.value = cfg.peakTimeStart || minutesToLabel(nowMinutes()).slice(0, 5);
-  el("peakEndNote").textContent = `Queue runs until the break window ends (${cfg.breakWindowEnd}).`;
+  if (!endInput.dataset.userEdited) endInput.value = cfg.peakTimeEnd && cfg.peakTimeMode !== "toShiftEnd" ? cfg.peakTimeEnd : "13:00";
+
+  el("peakEndInputWrap").classList.toggle("hidden", peakTimeMode === "toShiftEnd");
+  el("peakEndNote").textContent = peakTimeMode === "toShiftEnd"
+    ? `Runs until the shift ends (${cfg.shiftEnd}).`
+    : "Only bookings inside this exact window are touched.";
+  el("peakModeWindowBtn").classList.toggle("active", peakTimeMode === "specificWindow");
+  el("peakModeShiftEndBtn").classList.toggle("active", peakTimeMode === "toShiftEnd");
+
   if (cfg.peakTimeActive) {
-    btn.textContent = `Deactivate Peak Time (queue ends ${cfg.peakTimeEnd})`;
+    btn.textContent = `Deactivate Peak Time (${cfg.peakTimeStart}–${cfg.peakTimeEnd})`;
     btn.classList.add("active-peak");
   } else {
-    btn.textContent = "Activate Peak Time Queue";
+    btn.textContent = "Activate Peak Time";
     btn.classList.remove("active-peak");
   }
-  renderPeakEmployeeChecklist();
   renderPeakTimeChangesList();
-}
-
-// One checkbox per employee, with a live "X min left today" hint, so Amal
-// picks exactly who's on duty without needing to remember balances.
-function renderPeakEmployeeChecklist() {
-  const container = el("peakEmployeeChecklist");
-  if (!container) return;
-  const day = getTodayName();
-  const employees = dataService.getEmployees();
-  const previouslyChecked = new Set(
-    Array.from(container.querySelectorAll("input[type=checkbox]:checked")).map(cb => Number(cb.dataset.empId))
-  );
-  container.innerHTML = employees.map(e => {
-    const remaining = remainingMinutes(e.id, day);
-    const checked = previouslyChecked.has(e.id) ? "checked" : "";
-    return `
-      <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;">
-        <input type="checkbox" data-emp-id="${e.id}" ${checked}>
-        <img class="avatar-thumb" src="${e.photoUrl || avatarPlaceholderUrl(e)}" alt="" style="width:28px;height:28px;">
-        <span style="flex:1;font-size:13px;">${i18n.current === "ar" ? e.name : e.nameEn}</span>
-        <span class="sub" style="margin:0;">${remaining} min left</span>
-      </label>`;
-  }).join("");
 }
 
 // Shows every booking today that was rescheduled by the LAST Peak Time
@@ -262,6 +248,11 @@ function renderPeakTimeChangesList() {
   `;
 }
 
+function setPeakTimeMode(mode) {
+  peakTimeMode = mode;
+  renderPeakTimeControl();
+}
+
 function togglePeakTime() {
   const cfg = dataService.getConfig();
   if (cfg.peakTimeActive) {
@@ -270,18 +261,27 @@ function togglePeakTime() {
   } else {
     const start = el("peakStartInput").value;
     if (!start) { NotificationCenter.showToast("Pick a start time first.", "danger"); return; }
-    const selectedIds = Array.from(el("peakEmployeeChecklist").querySelectorAll("input[type=checkbox]:checked"))
-      .map(cb => Number(cb.dataset.empId));
-    if (selectedIds.length === 0) { NotificationCenter.showToast("Select at least one on-duty employee.", "danger"); return; }
-    if (!confirm(`Queue ${selectedIds.length} employee(s) one at a time, each getting their full remaining balance, starting at ${start}. Any of their existing bookings today will be cancelled first. Continue?`)) return;
+    if (peakTimeMode === "specificWindow" && !el("peakEndInput").value) {
+      NotificationCenter.showToast("Pick an end time first.", "danger"); return;
+    }
+    const end = peakTimeMode === "toShiftEnd" ? cfg.shiftEnd : el("peakEndInput").value;
+    const confirmMsg = peakTimeMode === "toShiftEnd"
+      ? `Anyone already booked between ${start} and shift end (${cfg.shiftEnd}) will be re-queued one at a time, guaranteed their full remaining balance before the shift ends. Continue?`
+      : `Anyone already booked between ${start} and ${end} will be re-queued one at a time within that window only. Bookings outside it are untouched. Continue?`;
+    if (!confirm(confirmMsg)) return;
 
-    const result = dataService.activatePeakTimeQueueForSelected(selectedIds, start);
+    const result = dataService.activatePeakTimeAutoQueue(peakTimeMode, start, end);
     const parts = [];
     if (result.queue.length > 0) {
-      parts.push("Queued: " + result.queue.map(q => {
-        const emp = getEmployeeById(q.employeeId);
-        return `${emp ? emp.name : "?"} (${minutesToLabel(q.start)}–${minutesToLabel(q.end)})`;
-      }).join(", "));
+      const byEmployee = {};
+      result.queue.forEach(q => { (byEmployee[q.employeeId] = byEmployee[q.employeeId] || []).push(q); });
+      const names = Object.keys(byEmployee).map(id => {
+        const emp = getEmployeeById(Number(id));
+        return emp ? (i18n.current === "ar" ? emp.name : emp.nameEn) : "?";
+      });
+      parts.push(`Queued ${names.length} people: ${names.join(", ")}`);
+    } else {
+      parts.push("No one had a conflicting break in this window — nothing needed rescheduling.");
     }
     if (result.skipped.length > 0) {
       parts.push("Skipped: " + result.skipped.map(s => {
@@ -290,7 +290,7 @@ function togglePeakTime() {
         return `${emp ? emp.name : "?"} (${reason})`;
       }).join(", "));
     }
-    NotificationCenter.showToast(parts.join(" — ") || "Peak Time activated.");
+    NotificationCenter.showToast(parts.join(" — "));
   }
   renderPeakTimeControl();
 }
@@ -528,6 +528,9 @@ async function initAmal() {
   el("savePinsBtn").addEventListener("click", savePins);
   el("togglePeakTimeBtn").addEventListener("click", togglePeakTime);
   el("peakStartInput").addEventListener("input", e => { e.target.dataset.userEdited = "1"; });
+  el("peakEndInput").addEventListener("input", e => { e.target.dataset.userEdited = "1"; });
+  el("peakModeWindowBtn").addEventListener("click", () => setPeakTimeMode("specificWindow"));
+  el("peakModeShiftEndBtn").addEventListener("click", () => setPeakTimeMode("toShiftEnd"));
 
   el("langToggleBtn").addEventListener("click", () => {
     i18n.setLanguage(i18n.current === "ar" ? "en" : "ar");

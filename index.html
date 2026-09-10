@@ -16,6 +16,13 @@
 <body>
 <div class="wrap">
 
+  <!-- Peak Time banner — stays up the whole time it's active, not
+       dismissible by the employee, explains exactly what's happening. -->
+  <div class="hidden" id="peakTimeBanner" style="background:var(--danger);color:#fff;border-radius:var(--radius-md);padding:14px 18px;margin-bottom:16px;font-size:13px;line-height:1.6;">
+    <div style="font-weight:800;margin-bottom:4px;">⏱ <span id="peakTimeBannerTitle"></span></div>
+    <div id="peakTimeBannerBody"></div>
+  </div>
+
   <nav class="page-nav">
     <a href="index.html" class="active"><span class="nav-icon">🏠</span><span data-i18n="navHome">Home</span></a>
     <a href="amal.html"><span class="nav-icon">✨</span><span data-i18n="navAmal">Amal's Space</span></a>
@@ -41,6 +48,11 @@
     <div class="status-card hidden" id="employeeStatusCard">
       <div class="top"><span id="statusName"></span><span id="statusBalance"></span></div>
       <div class="progress-track"><div class="progress-fill" id="statusFill"></div></div>
+    </div>
+
+    <div class="hidden" id="themePickerSection" style="margin-top:12px;">
+      <div class="sub" style="margin-bottom:6px;" data-i18n="customizeMyPage">Customize my page</div>
+      <div id="themeSwatchRow" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
     </div>
   </div>
 
@@ -182,14 +194,13 @@
 
     <div class="hidden" id="stepDuration">
       <h2 style="margin-top:18px;" data-i18n="chooseDuration">Choose Break Duration</h2>
-      <div class="duration-row">
-        <button class="duration-btn" id="btnDur15">15</button>
-        <button class="duration-btn" id="btnDur30">30</button>
-        <button class="duration-btn" id="btnDurCustom">…</button>
-      </div>
-      <div class="hidden" id="customDurationRow" style="display:flex;gap:8px;margin-top:10px;align-items:center;">
-        <input type="number" id="customDurationInput" min="5" step="5" style="flex:1;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);" placeholder="Minutes">
-        <button class="btn btn-primary" id="customDurationApplyBtn" data-i18n="save">Set</button>
+      <div class="duration-row" style="flex-wrap:wrap;">
+        <button class="duration-btn" data-dur="5">5</button>
+        <button class="duration-btn" data-dur="10">10</button>
+        <button class="duration-btn" data-dur="15">15</button>
+        <button class="duration-btn" data-dur="20">20</button>
+        <button class="duration-btn" data-dur="25">25</button>
+        <button class="duration-btn" data-dur="30">30</button>
       </div>
     </div>
 
