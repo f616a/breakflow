@@ -25,6 +25,8 @@ const CURRENT_EMPLOYEE_KEY = "breakflow_current_employee";
 
 const homeState = {
   day: getTodayDate(), // a REAL calendar date ("YYYY-MM-DD") now, not a weekday name — see js/booking.js
+  bookingDate: getTodayDate(), // which day the CURRENT booking flow targets — separate from `day`, since
+                                // "today" views (status, schedule, my breaks) always stay on today itself
   step: 0, // 0 = not booking, 1..4 = active step
   employeeId: getStoredEmployeeId(),
   duration: null,
@@ -512,12 +514,46 @@ function openBookingFlow() {
     return;
   }
   homeState.step = 1;
+  homeState.bookingDate = getTodayDate(); // always default back to today when opening fresh
   el("bookingPanel").classList.remove("hidden");
   el("stepDuration").classList.remove("hidden");
   el("stepTime").classList.add("hidden");
   el("stepConfirm").classList.add("hidden");
+  renderDayPicker();
   renderDurationButtons();
   el("bookingPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// Shows "Today" plus any dates Amal has opened for early self-booking
+// (js/config.js: openBookingDates) — hidden entirely if none are open,
+// so most days this row simply doesn't appear.
+function renderDayPicker() {
+  const cfg = dataService.getConfig();
+  const today = getTodayDate();
+  const openDates = (cfg.openBookingDates || []).filter(d => d >= today).sort();
+  const section = el("stepDayPicker");
+  if (openDates.length === 0) {
+    section.classList.add("hidden");
+    return;
+  }
+  section.classList.remove("hidden");
+  const allDates = [today, ...openDates];
+  el("dayPickerRow").innerHTML = allDates.map(date => {
+    const isToday = date === today;
+    const active = homeState.bookingDate === date ? "selected" : "";
+    return `<button type="button" class="duration-btn ${active}" data-pick-date="${date}">${isToday ? i18n.t("today") : dateToDayName(date)}</button>`;
+  }).join("");
+  el("dayPickerRow").querySelectorAll("[data-pick-date]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      homeState.bookingDate = btn.dataset.pickDate;
+      homeState.duration = null;
+      homeState.selectedSlot = null;
+      el("stepTime").classList.add("hidden");
+      el("stepConfirm").classList.add("hidden");
+      renderDayPicker();
+      renderDurationButtons();
+    });
+  });
 }
 
 function renderWhoAmIGrid() {
@@ -586,6 +622,7 @@ function selectEmployee(employeeId) {
   el("bookingPanel").classList.add("hidden");
   setStoredEmployeeId(employeeId);
   applyEmployeeTheme(employeeId);
+  applyEmployeeLayout(employeeId);
   renderAll();
 }
 
@@ -608,6 +645,7 @@ function renderEmployeeStatusCard() {
   el("statusBalance").textContent = remaining > 0 ? `${remaining} ${i18n.t("remaining")}` : i18n.t("balanceCompleted");
   el("statusFill").style.width = `${Math.min(100, (used / cfg.dailyBreakMinutes) * 100)}%`;
   renderThemeSwatches();
+  renderLayoutPicker();
 }
 
 // Lets the employee pick one of the shared color-palette presets for
@@ -636,6 +674,28 @@ function selectMyTheme(themeKey) {
   renderThemeSwatches();
 }
 
+// Lets the employee pick one of the page LAYOUT templates (js/employee-layouts.js)
+// — distinct from color theme: this changes where sections sit, not their color.
+function renderLayoutPicker() {
+  const row = el("layoutPickerRow");
+  if (!homeState.employeeId) return;
+  const emp = getEmployeeById(homeState.employeeId);
+  const current = (emp.layoutChoice && LAYOUT_PRESETS[emp.layoutChoice]) ? emp.layoutChoice : "modern";
+  row.innerHTML = Object.keys(LAYOUT_PRESETS).map(key => {
+    const active = key === current ? "selected" : "";
+    return `<button type="button" class="duration-btn ${active}" data-layout-key="${key}">${LAYOUT_PRESETS[key].label}</button>`;
+  }).join("");
+  row.querySelectorAll("[data-layout-key]").forEach(btn => {
+    btn.addEventListener("click", () => selectMyLayout(btn.dataset.layoutKey));
+  });
+}
+
+function selectMyLayout(layoutKey) {
+  dataService.setEmployeeLayout(homeState.employeeId, layoutKey);
+  applyEmployeeLayout(homeState.employeeId);
+  renderLayoutPicker();
+}
+
 // Shared fallback avatar (initial letter on a color circle) — used
 // anywhere an employee hasn't had a real photo uploaded yet.
 function avatarPlaceholderUrl(emp) {
@@ -645,7 +705,7 @@ function avatarPlaceholderUrl(emp) {
 }
 
 function renderDurationButtons() {
-  const remaining = remainingMinutes(homeState.employeeId, homeState.day);
+  const remaining = remainingMinutes(homeState.employeeId, homeState.bookingDate);
   document.querySelectorAll(".duration-btn[data-dur]").forEach(btn => {
     const dur = Number(btn.dataset.dur);
     btn.disabled = remaining < dur;
@@ -669,9 +729,9 @@ function renderSlotGrid() {
   const cfg = dataService.getConfig();
 
   grid.innerHTML = generateSlots(homeState.duration).map(slot => {
-    const evalRes = evaluateSlot(homeState.employeeId, homeState.day, slot.start, slot.end);
+    const evalRes = evaluateSlot(homeState.employeeId, homeState.bookingDate, slot.start, slot.end);
     const isSelected = homeState.selectedSlot && homeState.selectedSlot.start === slot.start && homeState.selectedSlot.end === slot.end;
-    const load = overlappingCount(homeState.day, slot.start, slot.end, null);
+    const load = overlappingCount(homeState.bookingDate, slot.start, slot.end, null);
     const isPopular = load >= cfg.maxConcurrentBreaks - 1 && evalRes.status === "available";
     const cls = ["slot-pill"];
     if (isSelected) cls.push("selected");
@@ -683,7 +743,7 @@ function renderSlotGrid() {
   grid.querySelectorAll(".slot-pill").forEach(pill => {
     pill.addEventListener("click", () => {
       const start = Number(pill.dataset.start), end = Number(pill.dataset.end);
-      const evalRes = evaluateSlot(homeState.employeeId, homeState.day, start, end);
+      const evalRes = evaluateSlot(homeState.employeeId, homeState.bookingDate, start, end);
       const isSelected = homeState.selectedSlot && homeState.selectedSlot.start === start;
       if (evalRes.status !== "available" && !isSelected) {
         // A few reasons are specific enough to show their own precise
@@ -711,14 +771,14 @@ function renderSlotGrid() {
 }
 
 function findNext() {
-  const slot = findNextAvailableSlot(homeState.employeeId, homeState.day, homeState.duration);
+  const slot = findNextAvailableSlot(homeState.employeeId, homeState.bookingDate, homeState.duration);
   if (!slot) { NotificationCenter.showToast(i18n.t("unavailable"), "danger"); return; }
   homeState.selectedSlot = slot;
   renderSlotGrid();
   renderConfirmStep();
 }
 function findBest() {
-  const slot = findBestTime(homeState.employeeId, homeState.day, homeState.duration);
+  const slot = findBestTime(homeState.employeeId, homeState.bookingDate, homeState.duration);
   if (!slot) { NotificationCenter.showToast(i18n.t("unavailable"), "danger"); return; }
   homeState.selectedSlot = slot;
   renderSlotGrid();
@@ -729,15 +789,19 @@ function renderConfirmStep() {
   if (!homeState.selectedSlot) { el("stepConfirm").classList.add("hidden"); return; }
   el("stepConfirm").classList.remove("hidden");
   const emp = getEmployeeById(homeState.employeeId);
+  const dateRow = homeState.bookingDate !== getTodayDate()
+    ? `<div><span class="k" data-i18n="whichDay">Which day?</span><span class="v">${dateToDayName(homeState.bookingDate)} — ${homeState.bookingDate}</span></div>`
+    : "";
   el("confirmSummary").innerHTML = `
     <div><span class="k">${i18n.t("selectEmployee")}</span><span class="v">${i18n.current === "ar" ? emp.name : emp.nameEn}</span></div>
+    ${dateRow}
     <div><span class="k">${i18n.t("pickTime")}</span><span class="v no-flip">${rangeLabel(homeState.selectedSlot.start, homeState.selectedSlot.end)}</span></div>
     <div><span class="k">${i18n.t("chooseDuration")}</span><span class="v">${homeState.duration} MIN</span></div>
   `;
 }
 
 function confirmBooking() {
-  const evalRes = evaluateSlot(homeState.employeeId, homeState.day, homeState.selectedSlot.start, homeState.selectedSlot.end);
+  const evalRes = evaluateSlot(homeState.employeeId, homeState.bookingDate, homeState.selectedSlot.start, homeState.selectedSlot.end);
   if (evalRes.status !== "available") {
     NotificationCenter.showToast(i18n.t("unavailable"), "danger");
     renderSlotGrid();
@@ -749,7 +813,7 @@ function confirmBooking() {
   // Firing it here instead would risk showing "success" a split second
   // before a legitimate server-side rejection rolls the booking back.
   dataService.createBooking({
-    day: homeState.day, employeeId: homeState.employeeId,
+    day: homeState.bookingDate, employeeId: homeState.employeeId,
     start: homeState.selectedSlot.start, end: homeState.selectedSlot.end, duration: homeState.duration
   });
 
@@ -836,7 +900,7 @@ async function initApp() {
   applyTheme(getStoredTheme());
   await dataService.ready; // wait for the initial Supabase load before first render
   if (dataService.onChange) dataService.onChange(renderAll); // live updates from other devices
-  if (homeState.employeeId) applyEmployeeTheme(homeState.employeeId); // restore custom theme on reload
+  if (homeState.employeeId) { applyEmployeeTheme(homeState.employeeId); applyEmployeeLayout(homeState.employeeId); } // restore custom theme/layout on reload
   renderAll();
 
   el("bookBreakBtn").addEventListener("click", openBookingFlow);

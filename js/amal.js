@@ -251,6 +251,52 @@ function renderPeakTimeChangesList() {
   `;
 }
 
+// -----------------------------------------------------------------
+// EARLY BOOKING ACCESS — per-day toggle for letting employees self-book
+// a FUTURE date in advance (normally they can only book today).
+// -----------------------------------------------------------------
+const EARLY_BOOKING_DAYS_AHEAD = 7;
+
+function renderEarlyBookingList() {
+  const container = el("earlyBookingList");
+  if (!container) return;
+  const cfg = dataService.getConfig();
+  const today = getTodayDate();
+  const openDates = new Set(cfg.openBookingDates || []);
+
+  const days = [];
+  for (let i = 0; i <= EARLY_BOOKING_DAYS_AHEAD; i++) days.push(addDays(today, i));
+
+  container.innerHTML = days.map(date => {
+    const isToday = date === today;
+    const dayName = dateToDayName(date);
+    const checked = isToday || openDates.has(date);
+    return `
+      <div class="day-toggle-row ${isToday ? "is-today" : ""}">
+        <div>
+          <div style="font-weight:700;font-size:13.5px;">${dayName}</div>
+          <div class="sub" style="margin:0;">${date}${isToday ? " — Today (always open)" : ""}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" data-early-date="${date}" ${checked ? "checked" : ""} ${isToday ? "disabled" : ""}>
+          <span class="slider"></span>
+        </label>
+      </div>`;
+  }).join("");
+
+  container.querySelectorAll("[data-early-date]").forEach(input => {
+    input.addEventListener("change", () => toggleEarlyBookingDate(input.dataset.earlyDate, input.checked));
+  });
+}
+
+function toggleEarlyBookingDate(date, isOpen) {
+  const cfg = dataService.getConfig();
+  const current = new Set(cfg.openBookingDates || []);
+  if (isOpen) current.add(date); else current.delete(date);
+  dataService.updateConfig({ openBookingDates: [...current] });
+  NotificationCenter.showToast(isOpen ? `Opened early booking for ${date}` : `Closed early booking for ${date}`);
+}
+
 function setPeakTimeMode(mode) {
   peakTimeMode = mode;
   renderPeakTimeControl();
@@ -494,6 +540,7 @@ function renderAmalDashboard() {
   renderBalanceTable();
   renderPinManager();
   renderPeakTimeControl();
+  renderEarlyBookingList();
   populateFilters();
   renderFullBreakList();
   renderSwapCenter();

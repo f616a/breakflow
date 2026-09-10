@@ -13,7 +13,7 @@ button, select, input{ font-family:inherit; }
 a{ color:inherit; }
 .hidden{ display:none !important; }
 
-.wrap{ max-width:1080px; margin:0 auto; padding:24px 20px 40px; }
+.wrap{ max-width:1080px; margin:0 auto; padding:24px 20px 40px; display:flex; flex-direction:column; }
 
 /* Numbers/times must never visually flip in RTL. */
 .time, .schedule-time, .badge-dur, [dir="rtl"] .no-flip { unicode-bidi: plaintext; direction: ltr; display:inline-block; }

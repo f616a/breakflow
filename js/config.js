@@ -42,6 +42,14 @@ const CONFIG = {
   peakTimeStart: "12:00",
   peakTimeEnd: "13:00",
 
+  // Real calendar dates ("YYYY-MM-DD") that Amal has opened for EARLY
+  // self-booking — an employee can normally only book TODAY themselves;
+  // adding a future date here lets them book that specific day in
+  // advance too (bypassing the 9am-opens-at gate, since that rule only
+  // ever applies to bookings made FOR today). Removing a date closes it
+  // again. Each day is independent — this never affects any other date.
+  openBookingDates: [],
+
   // Swap requests auto-expire after this many minutes if not accepted/declined.
   // (Swap system architecture is ready; the feature itself ships in a later phase.)
   swapExpirationMinutes: 15,

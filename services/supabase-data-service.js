@@ -79,7 +79,7 @@ const SupabaseDataService = (() => {
     fromEmployeeId: r.from_employee_id, toEmployeeId: r.to_employee_id, day: r.day,
     status: r.status, requestedAt: r.requested_at, respondedAt: r.responded_at
   });
-  const employeeFromRow = r => ({ id: r.id, name: r.name, nameEn: r.name_en, gender: r.gender, photoUrl: r.photo_url || "", pin: r.pin || "", themeChoice: r.theme_choice || "" });
+  const employeeFromRow = r => ({ id: r.id, name: r.name, nameEn: r.name_en, gender: r.gender, photoUrl: r.photo_url || "", pin: r.pin || "", themeChoice: r.theme_choice || "", layoutChoice: r.layout_choice || "" });
   const notificationFromRow = r => ({ id: r.id, title: r.title, body: r.body, type: r.type, read: r.read, createdAt: r.created_at });
   const leaveRequestFromRow = r => ({
     id: r.id, employeeId: r.employee_id, day: r.day, compensationMinutes: r.compensation_minutes,
@@ -594,7 +594,7 @@ const SupabaseDataService = (() => {
   function getEmployees() { return cache.employees; }
   function updateEmployees(list) {
     cache.employees = list;
-    const rows = list.map(e => ({ id: e.id, name: e.name, name_en: e.nameEn, gender: e.gender, photo_url: e.photoUrl || null, pin: e.pin || null, theme_choice: e.themeChoice || null }));
+    const rows = list.map(e => ({ id: e.id, name: e.name, name_en: e.nameEn, gender: e.gender, photo_url: e.photoUrl || null, pin: e.pin || null, theme_choice: e.themeChoice || null, layout_choice: e.layoutChoice || null }));
     client.from("employees").upsert(rows).then(({ error }) => { if (error) console.error("updateEmployees", error); });
     logActivity("Admin updated the employee roster");
     return list;
@@ -619,6 +619,16 @@ const SupabaseDataService = (() => {
     emp.themeChoice = themeKey;
     client.from("employees").update({ theme_choice: themeKey }).eq("id", employeeId)
       .then(({ error }) => { if (error) console.error("setEmployeeTheme", error); });
+    return emp;
+  }
+
+  /** Lets an employee set their own page's LAYOUT template ("modern" | "neoclassic"). */
+  function setEmployeeLayout(employeeId, layoutKey) {
+    const emp = cache.employees.find(e => e.id === employeeId);
+    if (!emp) return null;
+    emp.layoutChoice = layoutKey;
+    client.from("employees").update({ layout_choice: layoutKey }).eq("id", employeeId)
+      .then(({ error }) => { if (error) console.error("setEmployeeLayout", error); });
     return emp;
   }
 
@@ -774,7 +784,7 @@ const SupabaseDataService = (() => {
     getBookings, createBooking, cancelBooking, updateBookingStatus, startBreakSmart, endBreakEarly, createEmergencyBreak,
     requestLeave, getLeaveRequests, getMonthlyCompensation, activatePeakTimeAutoQueue,
     getConfig, updateConfig,
-    getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl, setEmployeeTheme,
+    getEmployees, updateEmployees, uploadAvatar, getAvatarPublicUrl, setEmployeeTheme, setEmployeeLayout,
     getAttendance, updateAttendance,
     getNotifications, addNotification, markNotificationRead, markAllNotificationsRead,
     getActivityLog, logActivity,

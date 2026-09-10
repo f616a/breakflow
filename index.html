@@ -53,6 +53,8 @@
     <div class="hidden" id="themePickerSection" style="margin-top:12px;">
       <div class="sub" style="margin-bottom:6px;" data-i18n="customizeMyPage">Customize my page</div>
       <div id="themeSwatchRow" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+      <div class="sub" style="margin:10px 0 6px;" data-i18n="pageLayout">Page layout</div>
+      <div id="layoutPickerRow" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
     </div>
   </div>
 
@@ -162,7 +164,9 @@
   <div id="onBreakList" style="margin-bottom:24px;"></div>
 
   <!-- Book a Break CTA -->
-  <button class="btn-cta" id="bookBreakBtn" data-i18n="bookABreak">BOOK A BREAK</button>
+  <div id="bookBreakSection">
+    <button class="btn-cta" id="bookBreakBtn" data-i18n="bookABreak">BOOK A BREAK</button>
+  </div>
 
   <!-- Emergency Break -->
   <div class="card" style="margin-top:14px;border-color:var(--danger);">
@@ -190,6 +194,11 @@
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <h2 data-i18n="bookABreak">BOOK A BREAK</h2>
       <button class="btn-link" id="closeBookingBtn">✕</button>
+    </div>
+
+    <div class="hidden" id="stepDayPicker" style="margin-top:14px;">
+      <div class="sub" style="margin-bottom:8px;" data-i18n="whichDay">Which day?</div>
+      <div id="dayPickerRow" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
     </div>
 
     <div class="hidden" id="stepDuration">
@@ -255,6 +264,7 @@
 <script src="js/config.js"></script>
 <script src="js/employees.js"></script>
 <script src="js/employee-themes.js"></script>
+<script src="js/employee-layouts.js"></script>
 <script src="js/attendance.js"></script>
 <script src="js/translations.js"></script>
 <script src="js/message-service.js"></script>
